@@ -12,7 +12,7 @@
 - **證據連結 (Evidence-linked)**：所有的投資論點 (Thesis) 必須與具體的特徵快照 (Feature Snapshot) 或事件連結，確保研究「事後可回溯」。
 - **凍結狀態**：研究當時看到的數據會被「凍結」在 Snapshot 中，避免資料更新導致論點失效卻無從查證。
 
-### 1.3 預算感知路由 (Budget-aware Routing)
+### 1.3 預算控管路由 (Budget-aware Routing)
 - 系統自動預估 API 消耗成本 (Cost Model)，並根據帳戶等級實施自動降級或轉向官方免費來源。
 
 ### 1.4 決策可解釋性 (Explainable Decisions)
