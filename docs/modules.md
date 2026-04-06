@@ -43,6 +43,12 @@
 - **最終決策**：產出 `FinalDecision`，包含明確動作 (BUY/SELL等)、信心度與中文摘要理由。
 - **可解釋性**：列出支持性規則與阻斷性規則。
 
+## `src/modules/storage/MigrationManager.ts`
+### 責任
+- **版本化遷移**：管理 `database/migrations` 下的 SQL 檔案執行。
+- **狀態管理**：追蹤已套用的遷移版本，支援 Batch 批次管理。
+- **開發工具**：提供 `up` (更新)、`rollback` (回滾)、`clear` (清空) 與 `reset` (重置) 功能。
+
 ---
 
 ## `src/modules/reporting/ReportGenerator.ts`

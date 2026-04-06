@@ -9,6 +9,7 @@
 - [x] PostgreSQL 版本化 Schema (Lineage/Snapshots)
 - [x] 預算預估與成本模型 (Cost Model)
 - [x] 核心單元測試 (tests/core-modules.test.ts)
+- [x] 資料庫遷移管理系統 (MigrationManager)
 
 ## Phase 1 - Data Providers (Current)
 - [ ] **TwseOpenApiProvider** (實作 fetch + 官方資料優先映射)
