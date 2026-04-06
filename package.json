@@ -8,13 +8,21 @@
     "lint": "tsc --noEmit -p tsconfig.json",
     "test": "NODE_OPTIONS='--loader ts-node/esm' node --test tests/*.test.ts",
     "validate": "npm run lint && npm test",
+    "db:up": "NODE_OPTIONS='--loader ts-node/esm' node src/app/migrate.ts up",
+    "db:rollback": "NODE_OPTIONS='--loader ts-node/esm' node src/app/migrate.ts rollback",
+    "db:reset": "NODE_OPTIONS='--loader ts-node/esm' node src/app/migrate.ts reset",
+    "db:clear": "NODE_OPTIONS='--loader ts-node/esm' node src/app/migrate.ts clear",
     "dev:tree": "node ./src/app/print-tree.js",
     "prepare": "husky"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.20.0",
     "husky": "^9.1.7",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "postgres": "^3.4.9"
   }
 }
