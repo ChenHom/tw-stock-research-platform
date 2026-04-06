@@ -3,7 +3,11 @@ import type { FetchContext, NormalizedResponse } from '../../../core/types/provi
 import type { NewsRow } from '../../../core/types/market.js';
 
 export class RssNewsProvider implements DataProvider<NewsRow> {
-  constructor(private readonly providerName: 'google_rss' | 'yahoo_rss') {}
+  readonly providerName: 'google_rss' | 'yahoo_rss';
+
+  constructor(providerName: 'google_rss' | 'yahoo_rss') {
+    this.providerName = providerName;
+  }
 
   supports(dataset: string): boolean {
     return dataset === 'stock_news';

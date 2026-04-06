@@ -15,6 +15,6 @@ export interface RuleDecision {
   reason: string;
   severity: 'critical' | 'high' | 'medium' | 'low';
   triggeredRules: string[];
-  thesisStatus?: 'intact' | 'weakened' | 'broken';
+  thesisStatus?: 'intact' | 'weakened' | 'broken' | 'archived';
   metadata?: Record<string, unknown>;
 }
