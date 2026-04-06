@@ -11,10 +11,12 @@ export interface DatasetCapability {
   dataset: string;
   sourceOfTruth: string;
   providerOrder: string[];
-  freeTierMode: QueryMode;
-  premiumMode: QueryMode;
+  freeMode: QueryMode;
+  backerMode: QueryMode;
+  sponsorMode: QueryMode;
   costWeight: number;
-  costModel: CostModel; // 新增：用於預算預估
+  costModel: CostModel;
+  cacheTtlSeconds: number; // 新增：根據更新頻率設定快取 TTL
   mvpRequired: boolean;
   notes?: string;
 }
@@ -24,100 +26,57 @@ export const DATASET_CAPABILITIES: DatasetCapability[] = [
     dataset: 'market_daily',
     sourceOfTruth: 'twse',
     providerOrder: ['twse', 'finmind'],
-    freeTierMode: 'bulk',
-    premiumMode: 'bulk',
+    freeMode: 'bulk',
+    backerMode: 'bulk',
+    sponsorMode: 'bulk',
     costWeight: 1,
-    costModel: { freeTierPerRequest: 0, bulkMultiplier: 1 }, // TWSE is free
-    mvpRequired: true,
-    notes: '全市場初篩'
+    costModel: { freeTierPerRequest: 0, bulkMultiplier: 1 },
+    cacheTtlSeconds: 14400, // 4小時 (盤後更新一次即可)
+    mvpRequired: true
   },
   {
     dataset: 'daily_valuation',
     sourceOfTruth: 'twse',
     providerOrder: ['twse', 'finmind'],
-    freeTierMode: 'bulk',
-    premiumMode: 'bulk',
+    freeMode: 'bulk',
+    backerMode: 'bulk',
+    sponsorMode: 'bulk',
     costWeight: 1,
     costModel: { freeTierPerRequest: 0, bulkMultiplier: 1 },
+    cacheTtlSeconds: 14400,
     mvpRequired: true
   },
   {
     dataset: 'month_revenue',
-    sourceOfTruth: 'finmind_or_mops',
-    providerOrder: ['finmind', 'official_backfill'],
-    freeTierMode: 'per_stock',
-    premiumMode: 'bulk',
+    sourceOfTruth: 'finmind',
+    providerOrder: ['finmind', 'twse'],
+    freeMode: 'per_stock',
+    backerMode: 'bulk',
+    sponsorMode: 'bulk',
     costWeight: 3,
     costModel: { freeTierPerRequest: 2, bulkMultiplier: 50 },
+    cacheTtlSeconds: 86400, // 24小時 (每月更新一次)
     mvpRequired: true
-  },
-  {
-    dataset: 'financial_statements',
-    sourceOfTruth: 'finmind_or_mops',
-    providerOrder: ['finmind', 'official_backfill'],
-    freeTierMode: 'per_stock',
-    premiumMode: 'bulk',
-    costWeight: 4,
-    costModel: { freeTierPerRequest: 5, bulkMultiplier: 100 },
-    mvpRequired: true
-  },
-  {
-    dataset: 'institutional_flow',
-    sourceOfTruth: 'finmind',
-    providerOrder: ['finmind', 'official_backfill'],
-    freeTierMode: 'per_stock',
-    premiumMode: 'bulk',
-    costWeight: 2,
-    costModel: { freeTierPerRequest: 1, bulkMultiplier: 30 },
-    mvpRequired: true
-  },
-  {
-    dataset: 'margin_short',
-    sourceOfTruth: 'finmind',
-    providerOrder: ['finmind', 'official_backfill'],
-    freeTierMode: 'per_stock',
-    premiumMode: 'bulk',
-    costWeight: 2,
-    costModel: { freeTierPerRequest: 1, bulkMultiplier: 30 },
-    mvpRequired: true
-  },
-  {
-    dataset: 'securities_lending',
-    sourceOfTruth: 'finmind',
-    providerOrder: ['finmind'],
-    freeTierMode: 'per_stock',
-    premiumMode: 'bulk',
-    costWeight: 2,
-    costModel: { freeTierPerRequest: 1, bulkMultiplier: 30 },
-    mvpRequired: false
   },
   {
     dataset: 'stock_news',
     sourceOfTruth: 'mixed',
-    providerOrder: ['finmind', 'google_rss', 'yahoo_rss'],
-    freeTierMode: 'keyword',
-    premiumMode: 'keyword',
+    providerOrder: ['finmind', 'google_rss'],
+    freeMode: 'keyword',
+    backerMode: 'keyword',
+    sponsorMode: 'keyword',
     costWeight: 1,
-    costModel: { freeTierPerRequest: 1, bulkMultiplier: 1 },
-    mvpRequired: true,
-    notes: '僅作線索'
-  },
-  {
-    dataset: 'realtime_quote',
-    sourceOfTruth: 'mixed',
-    providerOrder: ['twse_realtime', 'finmind_realtime'],
-    freeTierMode: 'disabled',
-    premiumMode: 'per_stock',
-    costWeight: 5,
-    costModel: { freeTierPerRequest: 10, bulkMultiplier: 100 },
-    mvpRequired: false
+    costModel: { freeTierPerRequest: 1 },
+    cacheTtlSeconds: 900, // 15分鐘 (新聞需較即時)
+    mvpRequired: true
   }
 ];
 
 export function resolveQueryMode(dataset: string, accountTier: AccountTier): QueryMode {
-  const capability = DATASET_CAPABILITIES.find((row) => row.dataset === dataset);
-  if (!capability) {
-    throw new Error(`Unknown dataset: ${dataset}`);
-  }
-  return accountTier === 'free' ? capability.freeTierMode : capability.premiumMode;
+  const cap = DATASET_CAPABILITIES.find(c => c.dataset === dataset);
+  if (!cap) throw new Error(`Unknown dataset: ${dataset}`);
+  
+  if (accountTier === 'sponsor') return cap.sponsorMode;
+  if (accountTier === 'backer') return cap.backerMode;
+  return cap.freeMode;
 }

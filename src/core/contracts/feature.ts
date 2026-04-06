@@ -1,9 +1,20 @@
 import type { StockFeatureSet } from '../types/feature.js';
+import type { MarketDailyRow, ValuationDailyRow, InstitutionalFlowRow, MonthRevenueRow } from '../types/market.js';
+
+export interface FeatureBuildInput {
+  stockId: string;
+  tradeDate: string;
+  marketDaily?: MarketDailyRow;
+  valuationDaily?: ValuationDailyRow;
+  institutionalFlow?: InstitutionalFlowRow;
+  monthRevenue?: MonthRevenueRow;
+  // 未來可擴充：歷史序列用於計算 MA20, RSI 等
+  history?: MarketDailyRow[];
+}
 
 export interface FeatureBuilder {
   /**
-   * 根據個股代號與交易日期，從多個資料源聚合並計算特徵集。
-   * 此方法應負責實作資料的彙整邏輯與缺失欄位處理。
+   * 根據提供的原始資料聚合計算特徵集
    */
-  build(stockId: string, tradeDate: string): StockFeatureSet;
+  build(input: FeatureBuildInput): StockFeatureSet;
 }

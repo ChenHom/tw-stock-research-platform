@@ -18,6 +18,11 @@
 ### 1.4 決策可解釋性 (Explainable Decisions)
 - 規則引擎採「外掛式設計」，決策合成層 (Decision Composer) 負責彙整規則結果、論點狀態與估值，產出具備摘要理由的決策建議。
 
+### 1.5 快取策略 (Caching Strategy)
+- **熱快取 (Hot Cache)**：為了減少重複調用外部 API (如 FinMind/TWSE)，系統實作了基於 `CacheStore` 的快取層。
+- **節奏驅動 TTL**：快取過期時間 (TTL) 非固定值，而是根據 Dataset 的官方更新節奏決定（例如：市場價量 4 小時、月營收 24 小時、新聞 15 分鐘）。
+- **快取一致性**：快取鍵包含 `dataset:mode:stockId:date`，確保資料時點與權限等級的正確性。
+
 ---
 
 ## 2. 資料流 (Data Flow)

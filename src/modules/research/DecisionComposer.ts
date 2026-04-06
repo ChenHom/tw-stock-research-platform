@@ -10,9 +10,8 @@ export interface DecisionComposerInput {
 }
 
 export class DecisionComposer {
-  private readonly version = '1.1.0';
+  private readonly version = '1.2.0';
 
-  // 動作優先級定義 (數值越高代表越優先/越強制)
   private readonly actionPriority: Record<RuleAction, number> = {
     'BLOCK': 100,
     'EXIT': 90,
@@ -26,60 +25,78 @@ export class DecisionComposer {
   };
 
   /**
-   * 根據多個維度的資訊合成最終決策
+   * 強化版決策合成邏輯
    */
   compose(input: DecisionComposerInput): FinalDecision {
     const { ruleResults, thesisStatus, valuationGap } = input;
+    const triggered = ruleResults.filter(r => r.triggered);
     
-    // 1. 根據觸發規則找出最高優先級的動作
-    const triggeredRules = ruleResults.filter(r => r.triggered);
-    
-    // 依優先級排序觸發的規則
-    const sortedRules = [...triggeredRules].sort((a, b) => 
+    // 1. 分類規則 (P1-5)
+    const blockingRules = triggered.filter(r => r.action === 'BLOCK').map(r => r.ruleId);
+    const exitRules = triggered.filter(r => ['EXIT', 'SELL', 'TRIM'].includes(r.action)).map(r => r.ruleId);
+    const buyRules = triggered.filter(r => ['BUY', 'ADD'].includes(r.action)).map(r => r.ruleId);
+
+    // 2. 決定基礎動作 (取最高優先級)
+    const sortedTriggered = [...triggered].sort((a, b) => 
       (this.actionPriority[b.action] || 0) - (this.actionPriority[a.action] || 0)
     );
-
-    const primaryRule = sortedRules[0];
+    const primaryRule = sortedTriggered[0];
     let finalAction: RuleAction = primaryRule?.action || 'NO_ACTION';
-    
-    // 2. 特殊邏輯覆寫：論點優先於買入建議
+
+    // 3. 論點強制覆寫
     if (thesisStatus === 'broken' && this.actionPriority[finalAction] < this.actionPriority['EXIT']) {
       finalAction = 'EXIT';
     }
 
-    // 3. 計算綜合置信度 (Confidence Score)
-    // 考量因素：主要規則的 severity、支持規則的數量、估值空間
-    const severityBonus = primaryRule?.severity === 'critical' ? 0.2 : 0;
-    const supportBonus = triggeredRules.filter(r => r.action === finalAction).length * 0.05;
-    const valuationBonus = (valuationGap && valuationGap > 0.2 && finalAction === 'BUY') ? 0.1 : 0;
+    // 4. 計算綜合置信度
+    let confidence = 0.6;
     
-    let confidence = 0.5 + severityBonus + supportBonus + valuationBonus;
+    // 考慮論點狀態
+    if (thesisStatus === 'weakened') confidence -= 0.15;
+    if (thesisStatus === 'broken') confidence += 0.2; // 壞事確定的置信度通常很高
 
-    // 4. 產出摘要理由
-    const blockingRules = triggeredRules.filter(r => this.actionPriority[r.action] >= 70).map(r => r.ruleId);
-    const supportingRules = triggeredRules.filter(r => r.action === finalAction).map(r => r.ruleId);
+    // 考慮衝突懲罰 (同時有買與賣)
+    if (buyRules.length > 0 && exitRules.length > 0) {
+      confidence -= 0.2;
+    }
 
-    let summary = this.generateSummary(finalAction, thesisStatus, triggeredRules.length);
+    // 考慮估值加成
+    if (valuationGap) {
+      if (finalAction === 'BUY' && valuationGap > 0.2) confidence += 0.1;
+      if (['SELL', 'TRIM'].includes(finalAction) && valuationGap < -0.15) confidence += 0.1;
+    }
+
+    // 主要規則加成
+    if (primaryRule?.severity === 'critical') confidence += 0.1;
+
+    // 5. 產出中文化摘要
+    const summary = this.generateDetailedSummary(finalAction, thesisStatus, buyRules.length, exitRules.length, primaryRule?.ruleName);
 
     return {
       stockId: input.stockId,
       decisionDate: input.asOf,
       action: finalAction,
-      confidence: Math.min(confidence, 1.0),
+      confidence: Math.max(0.1, Math.min(confidence, 1.0)),
       summary,
-      supportingRules,
+      supportingRules: triggered.filter(r => r.action === finalAction).map(r => r.ruleId),
       blockingRules,
       thesisStatus,
       composerVersion: this.version
     };
   }
 
-  private generateSummary(action: RuleAction, thesis: ThesisStatus, ruleCount: number): string {
-    if (action === 'BLOCK') return `觸發風險過濾規則，已攔截交易。`;
-    if (action === 'EXIT' || thesis === 'broken') return `論點破壞或觸發出場規則，建議立即出場。`;
-    if (action === 'SELL' || action === 'TRIM') return `觸發減碼規則，建議降低曝險。`;
-    if (action === 'BUY' || action === 'ADD') return `技術面與論點吻合，建議建立或增加部位。`;
-    if (ruleCount > 0) return `觸發 ${ruleCount} 項輔助規則，維持當前動作。`;
-    return '未達交易門檻，維持觀望。';
+  private generateDetailedSummary(action: RuleAction, thesis: ThesisStatus, buys: number, exits: number, primaryName?: string): string {
+    const parts: string[] = [];
+    
+    if (action === 'BLOCK') parts.push('觸發嚴格風險攔截。');
+    else if (thesis === 'broken') parts.push('投資論點已破壞，強制建議出場。');
+    else if (action === 'EXIT' || action === 'SELL' || action === 'TRIM') parts.push(`主導規則 [${primaryName || '未知'}] 建議減碼或出場。`);
+    else if (action === 'BUY' || action === 'ADD') parts.push(`主導規則 [${primaryName || '未知'}] 建議偏多操作。`);
+    else parts.push('目前無明確交易訊號。');
+
+    if (buys > 0 && exits > 0) parts.push(`警告：系統偵測到 ${buys} 項偏多與 ${exits} 項偏空規則衝突，置信度已調降。`);
+    if (thesis === 'weakened') parts.push('提醒：投資論點已出現轉弱跡象。');
+
+    return parts.join(' ');
   }
 }

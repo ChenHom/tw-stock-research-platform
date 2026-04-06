@@ -1,14 +1,18 @@
 import type { RuleContext } from '../../core/types/rule.js';
 import type { ThesisStatus, Direction } from '../../core/types/common.js';
+import type { FeatureKey } from '../../core/types/feature.js';
 
-export type EvidenceType = 'feature_snapshot' | 'event' | 'valuation_snapshot' | 'news_verified';
+export type EvidenceType = 'feature_snapshot' | 'event' | 'valuation_snapshot';
 export type EvidencePolarity = 'support' | 'risk' | 'disconfirm';
+export type ComparisonType = 'eq_true' | 'eq_false' | 'gte' | 'lte';
 
 export interface ThesisEvidenceRef {
   type: EvidenceType;
-  refId: string; // 指向對應 snapshot 的 ID
-  pillarKey?: string; // 該證據支持的論點支柱 Key
+  refId: string;
+  pillarKey: FeatureKey; // 強化型別
   polarity: EvidencePolarity;
+  comparison?: ComparisonType;
+  threshold?: number;
   note?: string;
 }
 
@@ -32,9 +36,6 @@ export interface ThesisSnapshot {
 }
 
 export class ThesisTracker {
-  /**
-   * 建立全新的 Thesis Head
-   */
   createThesis(input: CreateThesisInput): ThesisSnapshot {
     return {
       thesisId: crypto.randomUUID(),
@@ -48,9 +49,6 @@ export class ThesisTracker {
     };
   }
 
-  /**
-   * 基於現有 Thesis 建立新版本 (版本鏈)
-   */
   appendVersion(current: ThesisSnapshot, input: Partial<CreateThesisInput>): ThesisSnapshot {
     return {
       ...current,
@@ -64,19 +62,29 @@ export class ThesisTracker {
   }
 
   /**
-   * 根據新的上下文評估 Thesis 狀態 (最小可用版)
-   * 邏輯：
-   * - 關鍵 support evidence 失效 (如特徵異常) -> weakened
-   * - 關鍵 disconfirm evidence 命中 -> broken
+   * 強化版狀態評估邏輯 (P1-4)
    */
   evaluateStatus(current: ThesisSnapshot, context: RuleContext): ThesisStatus {
     const { features } = context;
-    
-    // 範例：若證據中包含 'revenue_acceleration' 且目前營收特徵顯示衰退，則削弱或判定論點破壞
-    const disconfirmingHits = current.evidence.filter(e => e.polarity === 'disconfirm' && features[e.pillarKey ?? ''] === true);
-    if (disconfirmingHits.length > 0) return 'broken';
+    const supportFails: string[] = [];
+    const disconfirmHits: string[] = [];
 
-    const supportFails = current.evidence.filter(e => e.polarity === 'support' && features[e.pillarKey ?? ''] === false);
+    for (const ev of current.evidence) {
+      const value = (features as any)[ev.pillarKey];
+      let isMet = true;
+
+      // 支援多種比較運算
+      if (ev.comparison === 'eq_true') isMet = value === true;
+      else if (ev.comparison === 'eq_false') isMet = value === false;
+      else if (ev.comparison === 'gte' && ev.threshold !== undefined) isMet = value >= ev.threshold;
+      else if (ev.comparison === 'lte' && ev.threshold !== undefined) isMet = value <= ev.threshold;
+      else isMet = !!value;
+
+      if (!isMet && ev.polarity === 'support') supportFails.push(ev.pillarKey);
+      if (isMet && ev.polarity === 'disconfirm') disconfirmHits.push(ev.pillarKey);
+    }
+
+    if (disconfirmHits.length > 0) return 'broken';
     if (supportFails.length >= 2) return 'broken';
     if (supportFails.length === 1) return 'weakened';
 

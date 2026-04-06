@@ -1,78 +1,74 @@
-import type { DatasetRouter as DatasetRouterContract, RoutingDecision } from '../../core/contracts/router.js';
+import type { DatasetRouter as DatasetRouterContract, RoutingDecision, QueryCostEstimate } from '../../core/contracts/router.js';
 import type { AccountTier, QueryMode } from '../../core/types/common.js';
+import type { BudgetSnapshot } from '../budget/RateBudgetGuard.js';
 import { DATASET_CAPABILITIES, resolveQueryMode } from '../../config/datasets.js';
 
-export interface QueryCostEstimate {
-  estimatedCalls: number;
-  estimatedCostUnits: number;
-}
-
 export class DefaultDatasetRouter implements DatasetRouterContract {
-  decide(dataset: string, accountTier: AccountTier, stockId?: string): RoutingDecision {
+  decide(
+    dataset: string,
+    accountTier: AccountTier,
+    budget?: BudgetSnapshot,
+    stockId?: string
+  ): RoutingDecision {
     const capability = DATASET_CAPABILITIES.find((row) => row.dataset === dataset);
-    if (!capability) {
-      throw new Error(`Unknown dataset: ${dataset}`);
-    }
+    if (!capability) throw new Error(`Unknown dataset: ${dataset}`);
 
     const queryMode = resolveQueryMode(dataset, accountTier);
-    const providerOrder = capability.providerOrder.slice();
+    const estimatedCost = this.estimateCost(dataset, accountTier, queryMode);
+    
+    let finalProviderOrder = [...capability.providerOrder];
+    let degradeMode: RoutingDecision['degradeMode'] = 'none';
+    let canProceed = true;
+    const reasonParts: string[] = [`tier=${accountTier}`, `mode=${queryMode}`];
 
-    // 實作第一階段：成本預估
-    const costEstimate = this.estimateCost(dataset, accountTier, queryMode, !!stockId);
-
-    const reasonParts: string[] = [
-      `dataset=${dataset}`,
-      `tier=${accountTier}`,
-      `queryMode=${queryMode}`,
-      `estCost=${costEstimate.estimatedCostUnits}`
-    ];
-
-    if (stockId) {
-      reasonParts.push(`stockId=${stockId}`);
+    // 實作降級邏輯 (P0-3)
+    if (budget) {
+      if (!budget.canProceed) {
+        // 強制停止：只保留官方免費源
+        finalProviderOrder = finalProviderOrder.filter(p => p === 'twse');
+        canProceed = finalProviderOrder.length > 0;
+        degradeMode = 'official_only';
+        reasonParts.push('budget_halt: official_only');
+      } else if (budget.shouldDegrade) {
+        // 進入降級：對特定資料集實施限制
+        if (dataset === 'stock_news') {
+          degradeMode = 'skip_non_essential';
+          canProceed = false;
+          reasonParts.push('degrade: skip_news');
+        } else if (dataset === 'month_revenue' && !stockId) {
+          degradeMode = 'watchlist_only';
+          reasonParts.push('degrade: watchlist_only');
+        }
+      }
     }
 
     return {
       dataset,
-      providerOrder,
+      providerOrder: capability.providerOrder,
+      finalProviderOrder,
       queryMode,
-      supportsFallback: providerOrder.length > 1,
+      supportsFallback: finalProviderOrder.length > 1,
       accountTier,
+      estimatedCost,
+      degradeMode,
+      canProceed,
       reason: reasonParts.join(', ')
     };
   }
 
-  /**
-   * 預估本次查詢的點數消耗
-   */
-  private estimateCost(
-    dataset: string,
-    accountTier: AccountTier,
-    queryMode: QueryMode,
-    hasStockId: boolean
-  ): QueryCostEstimate {
-    const capability = DATASET_CAPABILITIES.find((row) => row.dataset === dataset);
-    if (!capability) return { estimatedCalls: 0, estimatedCostUnits: 0 };
+  private estimateCost(dataset: string, tier: AccountTier, mode: QueryMode): QueryCostEstimate {
+    const cap = DATASET_CAPABILITIES.find(c => c.dataset === dataset);
+    if (!cap) return { estimatedCalls: 0, estimatedCostUnits: 0 };
 
-    const { costModel } = capability;
-    let baseCost = costModel.freeTierPerRequest;
-    
-    if (accountTier === 'backer') {
-      baseCost = costModel.backerTierPerRequest ?? baseCost;
-    } else if (accountTier === 'sponsor') {
-      baseCost = costModel.sponsorTierPerRequest ?? baseCost;
+    const { costModel } = cap;
+    let base = costModel.freeTierPerRequest;
+    if (tier === 'backer') base = costModel.backerTierPerRequest ?? base;
+    if (tier === 'sponsor') base = costModel.sponsorTierPerRequest ?? base;
+
+    if (mode === 'bulk') {
+      const mult = costModel.bulkMultiplier ?? 1;
+      return { estimatedCalls: mult, estimatedCostUnits: base * mult };
     }
-
-    if (queryMode === 'bulk') {
-      const multiplier = costModel.bulkMultiplier ?? 1;
-      return {
-        estimatedCalls: multiplier,
-        estimatedCostUnits: baseCost * multiplier
-      };
-    }
-
-    return {
-      estimatedCalls: 1,
-      estimatedCostUnits: baseCost
-    };
+    return { estimatedCalls: 1, estimatedCostUnits: base };
   }
 }
