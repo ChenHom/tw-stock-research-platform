@@ -6,11 +6,14 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "tsc --noEmit -p tsconfig.json",
-    "test": "node --test",
-    "dev:tree": "node ./src/app/print-tree.js"
+    "test": "NODE_OPTIONS='--loader ts-node/esm' node --test tests/*.test.ts",
+    "validate": "npm run lint && npm test",
+    "dev:tree": "node ./src/app/print-tree.js",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "husky": "^9.1.7",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }
