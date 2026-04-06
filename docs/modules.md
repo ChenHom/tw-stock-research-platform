@@ -24,9 +24,9 @@
 
 ## `src/modules/research/ThesisTracker.ts`
 ### 責任
-- **論點版本化**：管理 `ThesisHeads` 與 `ThesisVersions`。
+- **論點版本化**：分離 `createThesis` (建立 Head) 與 `appendVersion` (版本推進)，維持 `thesisId` 的持續性。
 - **證據連結 (Evidence Linking)**：將 論點 與具體的 `FeatureSnapshot` 或事件 ID 進行關聯。
-- **狀態追蹤**：三層狀態模型 (`intact` / `weakened` / `broken`)。
+- **自動狀態追蹤**：具備自動狀態評估邏輯與五層狀態模型 (`draft` / `active` / `weakened` / `broken` / `archived`)。
 
 ---
 
