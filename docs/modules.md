@@ -1,103 +1,53 @@
-# 模組責任
+# 模組責任 (Module Responsibilities)
 
 ## `src/modules/router/DatasetRouter.ts`
 ### 責任
-- 根據 `dataset + query intent + account tier` 決定 provider 與查詢模式
-- 執行 fallback
-- 回傳 `provider`, `queryMode`, `isFallback`, `confidence`
-
-### 不負責
-- 真正發 API
-- 算指標
-- 下交易動作
+- 根據 `dataset + query intent + account tier` 決定 provider 與查詢模式。
+- **預算感知**：在分發前計算點數消耗 (Cost Model)，實施降級或轉向官方免費來源。
+- **決策日誌**：產出 `SourceMetadata` 用於追蹤資料採用邏輯。
 
 ---
 
 ## `src/modules/budget/RateBudgetGuard.ts`
 ### 責任
-- 追蹤 FinMind request budget
-- 決定某 job 是否允許執行
-- 當達到門檻時降級：只抓 watchlist、不跑全量補強
-
----
-
-## `src/modules/providers/*`
-### 責任
-- 呼叫外部資料源
-- 原始資料正規化到內部型別
-- 提供 metadata：source, fetchedAt, dataset, costWeight
-
-### 不負責
-- 做估值
-- 做 thesis
-- 拼報告
-
----
-
-## `src/modules/symbol/SymbolResolver.ts`
-### 責任
-- 使用 stock master + fuzzy dictionary 做代號解析
-- 回傳信心值與候選清單
+- 追蹤各 Provider 的實時 API 配額。
+- 提供中文 Log 預警：當達到門檻時提醒進入「降級模式」或「強制中止」。
 
 ---
 
 ## `src/modules/features/FeatureBuilder.ts`
 ### 責任
-- 聚合 market / chip / fundamental / event data
-- 產出統一特徵集
-- 保證缺失欄位顯性化
-
-### 產出
-- RSI
-- bias
-- volume ratio
-- institutional score
-- margin risk score
-- revenue acceleration
-- event score
-- alpha vs 0050
+- 聚合 Market / Chip / Fundamental / Event 等原始資料。
+- **凍結快照**：產出 `FeatureSnapshot` 並寫入 DB，作為後續研究論點的「證據來源」。
 
 ---
 
 ## `src/modules/research/ThesisTracker.ts`
 ### 責任
-- 建立 / 更新 thesis
-- 保存支持證據與反證條件
-- 回傳 thesis 狀態：`intact | weakened | broken`
-
----
-
-## `src/modules/research/ValuationService.ts`
-### 責任
-- 儲存估值快照
-- 計算 base / bull / bear 合理價值區間
-- 管理估值方法與 peer group
-
----
-
-## `src/modules/research/CatalystCalendar.ts`
-### 責任
-- 標準化公司事件、法說、月營收、財報、股利等時點
-- 產生 upcoming event list 與 event risk score
+- **論點版本化**：管理 `ThesisHeads` 與 `ThesisVersions`。
+- **證據連結 (Evidence Linking)**：將 論點 與具體的 `FeatureSnapshot` 或事件 ID 進行關聯。
+- **狀態追蹤**：三層狀態模型 (`intact` / `weakened` / `broken`)。
 
 ---
 
 ## `src/modules/rules/RuleEngine.ts`
 ### 責任
-- 依序執行風控規則、策略規則、個股覆寫規則
-- 合併結果成單一 `RuleDecision`
+- **註冊制 (Registry)**：管理所有實作 `BaseRule` 介面的外掛規則。
+- **依序執行**：按優先權 (Priority) 執行規則並回傳 `RuleResult` 陣列。
 
-### 規則優先序
-1. Risk rules
-2. Strategy rules
-3. Custom overrides
+---
+
+## `src/modules/research/DecisionComposer.ts`
+### 責任 (拍板層)
+- **多維彙整**：接收 Rule Results、Thesis Status 與 Valuation Gap。
+- **最終決策**：產出 `FinalDecision`，包含明確動作 (BUY/SELL等)、信心度與中文摘要理由。
+- **可解釋性**：列出支持性規則與阻斷性規則。
 
 ---
 
 ## `src/modules/reporting/ReportGenerator.ts`
 ### 責任
-- 輸出：
-  - Screen report
-  - Position report
-  - Thesis update report
-  - JSON decision packet
+- 輸出中文化報告：
+  - 持股/追蹤報告 (Markdown)
+  - 論點變動報告
+  - 預算/點數告警摘要
