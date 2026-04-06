@@ -1,0 +1,34 @@
+export interface StockFeatureSet {
+  stockId: string;
+  tradeDate: string;
+  closePrice?: number;
+  prevClose?: number;
+  volume?: number;
+  vol20Ma?: number;
+  rsi12?: number;
+  ma20?: number;
+  bias20?: number;
+  volumeRatio20?: number;
+  foreignNet?: number;
+  trustNet?: number;
+  institutionalNet?: number;
+  marginRiskScore?: number;
+  lendingRiskScore?: number;
+  revenueYoY?: number;
+  revenueAcceleration?: number;
+  grossMargin?: number;
+  operatingMargin?: number;
+  roe?: number;
+  peRatio?: number;
+  pbRatio?: number;
+  dividendYield?: number;
+  alphaVs0050?: number;
+  eventScore?: number;
+  valueScore?: number;
+  growthScore?: number;
+  qualityScore?: number;
+  chipScore?: number;
+  riskScore?: number;
+  totalScore?: number;
+  missingFields: string[];
+}
