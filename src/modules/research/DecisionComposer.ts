@@ -34,15 +34,17 @@ export class DecisionComposer {
     if (blockingRules.length > 0) {
       finalAction = 'BLOCK';
       confidence = 1.0;
-      summary = `Blocked by ${blockingRules.length} risk/filter rules.`;
+      summary = `觸發 ${blockingRules.length} 項風險或過濾規則，已攔截交易。`;
     } else if (thesisStatus === 'broken') {
       finalAction = 'EXIT';
       confidence = 0.9;
-      summary = 'Thesis is broken, immediate exit recommended.';
+      summary = '投資論點已破壞 (Broken)，建議立即出場。';
     } else if (supportingRules.length > 0 && thesisStatus === 'intact') {
       finalAction = 'BUY';
       confidence = 0.7 + (valuationGap && valuationGap > 0.2 ? 0.1 : 0);
-      summary = `Strong setup with ${supportingRules.length} supporting rules and intact thesis.`;
+      summary = `具備 ${supportingRules.length} 項支持規則且論點完整，並有估值優勢。`;
+    } else {
+      summary = '未達交易門檻，維持觀望。';
     }
 
     return {

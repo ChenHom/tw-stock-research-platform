@@ -11,17 +11,18 @@ export class ReportGenerator {
     decision: FinalDecision
   ): string {
     return [
-      `# Position Report - ${featureSet.stockId} (${featureSet.tradeDate})`,
+      `# 個股持股/追蹤報告 - ${featureSet.stockId} (${featureSet.tradeDate})`,
       '',
-      `## Thesis`,
-      thesis ? `- ${thesis.statement}` : '- No thesis record',
+      `## 投資論點 (Thesis)`,
+      thesis ? `- ${thesis.statement}` : '- 尚無論點紀錄',
       '',
-      `## Valuation`,
-      valuation ? `- Base fair value: ${valuation.fairValueBase ?? 'N/A'}` : '- No valuation snapshot',
+      `## 估值分析 (Valuation)`,
+      valuation ? `- 合理價 (Base): ${valuation.fairValueBase ?? 'N/A'}` : '- 尚無估值快照',
       '',
-      `## Decision`,
-      `- Action: ${decision.action}`,
-      `- Reason: ${decision.summary}`,
+      `## 決策建議 (Decision)`,
+      `- 動作: ${decision.action}`,
+      `- 摘要理由: ${decision.summary}`,
+      `- 信心程度: ${(decision.confidence * 100).toFixed(1)}%`,
       ''
     ].join('\n');
   }
