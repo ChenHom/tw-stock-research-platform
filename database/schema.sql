@@ -1,8 +1,13 @@
 -- PostgreSQL schema for tw-stock-research-platform
+-- Optimized for: Provenance, Versioning, Evidence-linked Research, and Plugin-based Rules
+
+-- ---------------------------------------------------------
+-- 1. System & Provider Management
+-- ---------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS account_capability (
     provider_name            VARCHAR(50) NOT NULL,
-    account_tier             VARCHAR(50) NOT NULL,
+    account_tier             VARCHAR(50) NOT NULL, -- free / backer / sponsor
     api_request_limit        INTEGER,
     current_usage            INTEGER DEFAULT 0,
     supports_bulk            BOOLEAN NOT NULL DEFAULT FALSE,
@@ -10,6 +15,22 @@ CREATE TABLE IF NOT EXISTS account_capability (
     updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (provider_name, account_tier)
 );
+
+-- 追蹤資料採用的決策過程 (Data Lineage)
+CREATE TABLE IF NOT EXISTS data_lineage_decisions (
+    id                       BIGSERIAL PRIMARY KEY,
+    entity_type              TEXT NOT NULL, -- e.g., 'market_daily', 'financials'
+    entity_key               TEXT NOT NULL, -- e.g., '2330:2026-04-06'
+    field_name               TEXT NOT NULL, -- e.g., 'close_price'
+    selected_provider        TEXT NOT NULL,
+    rejected_providers       JSONB,         -- 記錄被捨棄的資料來源與其數值
+    decision_reason          TEXT,          -- e.g., 'official_priority', 'outlier_detected'
+    decided_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ---------------------------------------------------------
+-- 2. Core Market Data (Raw-ish)
+-- ---------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS stock_master (
     stock_id                 VARCHAR(10) PRIMARY KEY,
@@ -34,6 +55,7 @@ CREATE TABLE IF NOT EXISTS market_daily (
     turnover                 BIGINT,
     transaction_count        BIGINT,
     source_system            VARCHAR(50) NOT NULL,
+    source_meta              JSONB, -- 儲存 SourceMetadata 內容
     fetched_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (stock_id, trade_date)
 );
@@ -61,191 +83,116 @@ CREATE TABLE IF NOT EXISTS month_revenue (
     PRIMARY KEY (stock_id, revenue_month)
 );
 
-CREATE TABLE IF NOT EXISTS quarterly_financials (
-    stock_id                 VARCHAR(10) NOT NULL REFERENCES stock_master(stock_id),
-    fiscal_year              INTEGER NOT NULL,
-    fiscal_quarter           INTEGER NOT NULL,
-    revenue                  NUMERIC(20,2),
-    gross_profit             NUMERIC(20,2),
-    operating_income         NUMERIC(20,2),
-    net_income               NUMERIC(20,2),
-    eps                      NUMERIC(14,4),
-    gross_margin             NUMERIC(14,4),
-    operating_margin         NUMERIC(14,4),
-    net_margin               NUMERIC(14,4),
-    roe                      NUMERIC(14,4),
-    source_system            VARCHAR(50) NOT NULL,
-    fetched_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (stock_id, fiscal_year, fiscal_quarter)
-);
+-- ---------------------------------------------------------
+-- 3. Research Features & Snapshots (The "Frozen" State)
+-- ---------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS balance_sheet_snapshot (
+-- 凍結特徵快照：記錄當時研究看到的特徵集
+CREATE TABLE IF NOT EXISTS feature_snapshots (
+    id                       BIGSERIAL PRIMARY KEY,
     stock_id                 VARCHAR(10) NOT NULL REFERENCES stock_master(stock_id),
-    fiscal_year              INTEGER NOT NULL,
-    fiscal_quarter           INTEGER NOT NULL,
-    cash_and_equivalents     NUMERIC(20,2),
-    total_assets             NUMERIC(20,2),
-    total_liabilities        NUMERIC(20,2),
-    total_equity             NUMERIC(20,2),
-    inventory                NUMERIC(20,2),
-    accounts_receivable      NUMERIC(20,2),
-    long_term_debt           NUMERIC(20,2),
-    source_system            VARCHAR(50) NOT NULL,
-    fetched_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (stock_id, fiscal_year, fiscal_quarter)
-);
-
-CREATE TABLE IF NOT EXISTS cashflow_snapshot (
-    stock_id                 VARCHAR(10) NOT NULL REFERENCES stock_master(stock_id),
-    fiscal_year              INTEGER NOT NULL,
-    fiscal_quarter           INTEGER NOT NULL,
-    operating_cash_flow      NUMERIC(20,2),
-    investing_cash_flow      NUMERIC(20,2),
-    financing_cash_flow      NUMERIC(20,2),
-    free_cash_flow           NUMERIC(20,2),
-    capex                    NUMERIC(20,2),
-    source_system            VARCHAR(50) NOT NULL,
-    fetched_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (stock_id, fiscal_year, fiscal_quarter)
-);
-
-CREATE TABLE IF NOT EXISTS institutional_flow_daily (
-    stock_id                 VARCHAR(10) NOT NULL REFERENCES stock_master(stock_id),
-    trade_date               DATE NOT NULL,
-    foreign_net              BIGINT DEFAULT 0,
-    trust_net                BIGINT DEFAULT 0,
-    dealer_net               BIGINT DEFAULT 0,
-    total_institutional_net  BIGINT DEFAULT 0,
-    source_system            VARCHAR(50) NOT NULL,
-    fetched_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (stock_id, trade_date)
-);
-
-CREATE TABLE IF NOT EXISTS margin_short_daily (
-    stock_id                 VARCHAR(10) NOT NULL REFERENCES stock_master(stock_id),
-    trade_date               DATE NOT NULL,
-    margin_purchase_balance  BIGINT,
-    short_sale_balance       BIGINT,
-    margin_change            BIGINT,
-    short_change             BIGINT,
-    source_system            VARCHAR(50) NOT NULL,
-    fetched_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (stock_id, trade_date)
-);
-
-CREATE TABLE IF NOT EXISTS securities_lending_daily (
-    stock_id                 VARCHAR(10) NOT NULL REFERENCES stock_master(stock_id),
-    trade_date               DATE NOT NULL,
-    lending_balance          BIGINT,
-    lending_change           BIGINT,
-    source_system            VARCHAR(50) NOT NULL,
-    fetched_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (stock_id, trade_date)
-);
-
-CREATE TABLE IF NOT EXISTS market_features_daily (
-    stock_id                 VARCHAR(10) NOT NULL REFERENCES stock_master(stock_id),
-    trade_date               DATE NOT NULL,
-    rsi_12                   NUMERIC(14,4),
-    ma_20                    NUMERIC(14,4),
-    bias_20                  NUMERIC(14,4),
-    vol_20ma                 NUMERIC(20,2),
-    volume_ratio_20          NUMERIC(14,4),
-    alpha_vs_0050            NUMERIC(14,4),
-    event_score              NUMERIC(14,4),
-    value_score              NUMERIC(14,4),
-    growth_score             NUMERIC(14,4),
-    quality_score            NUMERIC(14,4),
-    chip_score               NUMERIC(14,4),
-    risk_score               NUMERIC(14,4),
-    total_score              NUMERIC(14,4),
-    generated_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (stock_id, trade_date)
-);
-
-CREATE TABLE IF NOT EXISTS company_events (
-    event_id                 BIGSERIAL PRIMARY KEY,
-    stock_id                 VARCHAR(10) REFERENCES stock_master(stock_id),
-    event_type               VARCHAR(50) NOT NULL, -- earnings, month_revenue, dividend, announcement, product, law
-    event_date               DATE NOT NULL,
-    title                    TEXT NOT NULL,
-    summary                  TEXT,
-    source_system            VARCHAR(50) NOT NULL,
-    source_ref               TEXT,
-    severity                 VARCHAR(20),
-    is_verified              BOOLEAN NOT NULL DEFAULT FALSE,
-    verification_ref         TEXT,
+    snapshot_at              TIMESTAMPTZ NOT NULL,
+    feature_set_version      TEXT NOT NULL,
+    payload                  JSONB NOT NULL, -- 完整的特徵鍵值對
     created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS news_raw (
-    news_id                  BIGSERIAL PRIMARY KEY,
-    published_at             TIMESTAMPTZ,
-    title                    TEXT NOT NULL,
-    content                  TEXT,
-    url                      TEXT NOT NULL UNIQUE,
-    source_name              VARCHAR(100),
-    source_system            VARCHAR(50) NOT NULL,
-    related_stock_ids        JSONB NOT NULL DEFAULT '[]'::jsonb,
-    verification_status      VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending / verified / unverified
-    created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS thesis_tracker (
-    thesis_id                BIGSERIAL PRIMARY KEY,
-    stock_id                 VARCHAR(10) NOT NULL REFERENCES stock_master(stock_id),
-    direction                VARCHAR(10) NOT NULL, -- long / short / watch
-    thesis_statement         TEXT NOT NULL,
-    status                   VARCHAR(20) NOT NULL, -- intact / weakened / broken / archived
-    confidence               VARCHAR(20) NOT NULL, -- high / medium / low
-    pillars                  JSONB NOT NULL,
-    disconfirming_evidence   JSONB NOT NULL,
-    risks                    JSONB NOT NULL DEFAULT '[]'::jsonb,
-    catalysts                JSONB NOT NULL DEFAULT '[]'::jsonb,
-    entry_conditions         JSONB NOT NULL DEFAULT '[]'::jsonb,
-    trim_conditions          JSONB NOT NULL DEFAULT '[]'::jsonb,
-    exit_conditions          JSONB NOT NULL DEFAULT '[]'::jsonb,
-    created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
+-- 估值快照版本化
 CREATE TABLE IF NOT EXISTS valuation_snapshots (
-    valuation_id             BIGSERIAL PRIMARY KEY,
+    id                       BIGSERIAL PRIMARY KEY,
     stock_id                 VARCHAR(10) NOT NULL REFERENCES stock_master(stock_id),
-    snapshot_date            DATE NOT NULL,
-    primary_method           VARCHAR(50) NOT NULL,
-    peer_group               JSONB NOT NULL DEFAULT '[]'::jsonb,
-    fair_value_bear          NUMERIC(14,4),
-    fair_value_base          NUMERIC(14,4),
-    fair_value_bull          NUMERIC(14,4),
-    upside_downside_pct      NUMERIC(14,4),
-    assumptions              JSONB NOT NULL DEFAULT '{}'::jsonb,
+    as_of_date               DATE NOT NULL,
+    method                   TEXT NOT NULL, -- e.g., 'PER_BAND', 'DCF', 'PEER_COMP'
+    fair_value_base          NUMERIC(12,4),
+    fair_value_bull          NUMERIC(12,4),
+    fair_value_bear          NUMERIC(12,4),
+    assumptions              JSONB, -- 關鍵假設 (e.g., WACC, Growth Rate)
+    source_refs              JSONB, -- 關連的證據 ID (e.g., feature_snapshot_id)
     created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS positions (
-    stock_id                 VARCHAR(10) PRIMARY KEY REFERENCES stock_master(stock_id),
-    entry_price              NUMERIC(14,4) NOT NULL,
-    shares                   INTEGER NOT NULL,
-    strategy                 VARCHAR(50) NOT NULL DEFAULT 'fixed',
-    stop_loss                NUMERIC(14,4),
-    take_profit              NUMERIC(14,4),
-    high_price               NUMERIC(14,4),
-    trailing_pct             NUMERIC(14,4),
-    strategy_note            TEXT,
-    opened_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- ---------------------------------------------------------
+-- 4. Thesis & Evidence Linking
+-- ---------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS thesis_heads (
+    thesis_id                UUID PRIMARY KEY,
+    stock_id                 VARCHAR(10) NOT NULL REFERENCES stock_master(stock_id),
+    created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    archived_at              TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS thesis_versions (
+    id                       BIGSERIAL PRIMARY KEY,
+    thesis_id                UUID NOT NULL REFERENCES thesis_heads(thesis_id),
+    version                  INT NOT NULL,
+    status                   TEXT NOT NULL, -- intact / weakened / broken / archived
+    statement                TEXT NOT NULL,
+    direction                TEXT NOT NULL, -- long / short / neutral
+    conviction_score         NUMERIC(5,2),
+    created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (thesis_id, version)
+);
+
+-- 證據連結表：將 Thesis 與具體證據 (Feature/Event/Valuation) 連結
+CREATE TABLE IF NOT EXISTS thesis_evidence_links (
+    id                       BIGSERIAL PRIMARY KEY,
+    thesis_id                UUID NOT NULL,
+    thesis_version           INT NOT NULL,
+    evidence_type            TEXT NOT NULL, -- feature_snapshot / event / valuation_snapshot / news_verified
+    evidence_ref_id          TEXT NOT NULL, -- 指向對應表的 ID
+    pillar_key               TEXT,          -- 該證據支持的論點支柱 Key
+    polarity                 TEXT NOT NULL, -- support / risk / disconfirm
+    note                     TEXT,
+    linked_at                TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ---------------------------------------------------------
+-- 5. Rules & Decisions
+-- ---------------------------------------------------------
+
+-- 規則執行日誌 (Plugin-based Rule Engine 產出)
 CREATE TABLE IF NOT EXISTS rule_execution_log (
     log_id                   BIGSERIAL PRIMARY KEY,
     stock_id                 VARCHAR(10) REFERENCES stock_master(stock_id),
     trade_date               DATE NOT NULL,
-    rule_code                VARCHAR(100) NOT NULL,
-    decision_action          VARCHAR(20) NOT NULL,
-    decision_reason          TEXT NOT NULL,
-    severity                 VARCHAR(20),
+    rule_id                  VARCHAR(100) NOT NULL,
+    category                 VARCHAR(20) NOT NULL, -- risk / entry / exit / filter / thesis
+    action                   VARCHAR(20) NOT NULL, -- BUY / HOLD / SELL / BLOCK / etc.
+    severity                 VARCHAR(20) NOT NULL, -- info / warning / critical
+    triggered                BOOLEAN NOT NULL,
+    reason                   TEXT NOT NULL,
     context_json             JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 最終決策合成層 (Decision Composer 產出)
+CREATE TABLE IF NOT EXISTS final_decisions (
+    id                       BIGSERIAL PRIMARY KEY,
+    stock_id                 VARCHAR(10) NOT NULL REFERENCES stock_master(stock_id),
+    decision_date            DATE NOT NULL,
+    action                   VARCHAR(20) NOT NULL, -- BUY / ADD / HOLD / TRIM / SELL / EXIT / WATCH
+    confidence               NUMERIC(5,2),
+    summary                  TEXT NOT NULL,
+    thesis_status            TEXT NOT NULL,
+    supporting_rule_ids      JSONB,
+    blocking_rule_ids        JSONB,
+    composer_version         TEXT NOT NULL,
+    created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ---------------------------------------------------------
+-- 6. Support Data & Logs
+-- ---------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS company_events (
+    event_id                 BIGSERIAL PRIMARY KEY,
+    stock_id                 VARCHAR(10) REFERENCES stock_master(stock_id),
+    event_type               VARCHAR(50) NOT NULL,
+    event_date               DATE NOT NULL,
+    title                    TEXT NOT NULL,
+    summary                  TEXT,
+    source_system            VARCHAR(50) NOT NULL,
     created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -254,11 +201,20 @@ CREATE TABLE IF NOT EXISTS dataset_fetch_log (
     provider_name            VARCHAR(50) NOT NULL,
     dataset                  VARCHAR(100) NOT NULL,
     query_mode               VARCHAR(30) NOT NULL,
-    account_tier             VARCHAR(50),
-    request_count            INTEGER NOT NULL DEFAULT 1,
-    status                   VARCHAR(20) NOT NULL, -- success / error / fallback / skipped
+    status                   VARCHAR(20) NOT NULL,
     latency_ms               INTEGER,
+    cost_units               NUMERIC(10,2), -- 記錄消耗的 FinMind 點數或額度
     is_fallback              BOOLEAN NOT NULL DEFAULT FALSE,
     error_message            TEXT,
     requested_at             TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS positions (
+    stock_id                 VARCHAR(10) PRIMARY KEY REFERENCES stock_master(stock_id),
+    entry_price              NUMERIC(14,4) NOT NULL,
+    shares                   INTEGER NOT NULL,
+    stop_loss                NUMERIC(14,4),
+    take_profit              NUMERIC(14,4),
+    opened_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

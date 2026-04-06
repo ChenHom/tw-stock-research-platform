@@ -1,23 +1,40 @@
-import type { TradingRule, RuleContext } from '../../core/contracts/rule.js';
-import type { RuleDecision } from '../../core/types/rule.js';
+import type { RuleEngine as RuleEngineContract, BaseRule, RuleRegistry } from '../../core/contracts/rule.js';
+import type { RuleContext, RuleResult, RuleCategory } from '../../core/types/rule.js';
 
-export class RuleEngine {
-  constructor(private readonly rules: TradingRule[]) {}
+export class DefaultRuleRegistry implements RuleRegistry {
+  private rules = new Map<string, BaseRule>();
 
-  async evaluate(context: RuleContext): Promise<RuleDecision> {
-    const orderedRules = this.rules.slice().sort((a, b) => a.priority - b.priority);
+  register(rule: BaseRule): void {
+    this.rules.set(rule.id, rule);
+  }
+
+  list(): BaseRule[] {
+    return Array.from(this.rules.values());
+  }
+
+  getByCategory(category: RuleCategory): BaseRule[] {
+    return this.list().filter(r => r.category === category);
+  }
+
+  getById(id: string): BaseRule | undefined {
+    return this.rules.get(id);
+  }
+}
+
+export class DefaultRuleEngine implements RuleEngineContract {
+  constructor(private readonly registry: RuleRegistry) {}
+
+  async evaluate(context: RuleContext): Promise<RuleResult[]> {
+    const orderedRules = this.registry.list().slice().sort((a, b) => a.priority - b.priority);
+    const results: RuleResult[] = [];
 
     for (const rule of orderedRules) {
-      const decision = await rule.evaluate(context);
-      if (decision) return decision;
+      if (rule.supports(context)) {
+        const decision = await rule.evaluate(context);
+        results.push(decision);
+      }
     }
 
-    return {
-      action: 'HOLD',
-      reason: 'No rule triggered',
-      severity: 'low',
-      triggeredRules: [],
-      thesisStatus: context.thesis?.status ?? 'intact'
-    };
+    return results;
   }
 }

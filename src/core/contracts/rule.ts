@@ -1,26 +1,39 @@
-import type { StockFeatureSet } from '../types/feature.js';
-import type { ThesisRecord, ValuationSnapshot, CatalystItem } from '../types/research.js';
-import type { RuleDecision } from '../types/rule.js';
+import type { RuleContext, RuleResult, RuleCategory } from '../types/rule.js';
 
-export interface RuleContext {
-  stockId: string;
-  featureSet: StockFeatureSet;
-  thesis?: ThesisRecord;
-  valuation?: ValuationSnapshot;
-  upcomingCatalysts?: CatalystItem[];
-  position?: {
-    entryPrice?: number;
-    shares?: number;
-    stopLoss?: number;
-    takeProfit?: number;
-    highPrice?: number;
-    trailingPct?: number;
-    strategy?: string;
-  };
+/**
+ * 核心規則介面：所有外掛規則都必須實作此介面
+ */
+export interface BaseRule {
+  readonly id: string;
+  readonly name: string;
+  readonly category: RuleCategory;
+  readonly priority: number;
+  readonly tags: string[];
+
+  /**
+   * 檢查當前上下文是否支援此規則執行
+   */
+  supports(context: RuleContext): boolean;
+
+  /**
+   * 評估規則並回傳結果
+   */
+  evaluate(context: RuleContext): Promise<RuleResult>;
 }
 
-export interface TradingRule {
-  readonly ruleCode: string;
-  readonly priority: number;
-  evaluate(context: RuleContext): Promise<RuleDecision | null> | RuleDecision | null;
+/**
+ * 規則註冊表介面：管理系統中所有的外掛規則
+ */
+export interface RuleRegistry {
+  register(rule: BaseRule): void;
+  list(): BaseRule[];
+  getByCategory(category: RuleCategory): BaseRule[];
+  getById(id: string): BaseRule | undefined;
+}
+
+/**
+ * 規則引擎介面：負責執行規則組合與決策合成
+ */
+export interface RuleEngine {
+  evaluate(context: RuleContext): Promise<RuleResult[]>;
 }

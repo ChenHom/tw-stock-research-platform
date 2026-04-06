@@ -1,22 +1,29 @@
-import type { TradingRule, RuleContext } from '../../core/contracts/rule.js';
-import type { RuleDecision } from '../../core/types/rule.js';
+import type { BaseRule } from '../../core/contracts/rule.js';
+import type { RuleContext, RuleResult } from '../../core/types/rule.js';
 
-export class CandidatePoolAddRule implements TradingRule {
-  readonly ruleCode = 'strategy.candidate_pool_add';
+export class CandidatePoolAddRule implements BaseRule {
+  readonly id = 'strategy.candidate_pool_add';
+  readonly name = 'Candidate Pool Add';
+  readonly category = 'entry';
   readonly priority = 100;
+  readonly tags = ['strategy', 'candidate'];
 
-  evaluate(context: RuleContext): RuleDecision | null {
-    const score = context.featureSet.totalScore ?? 0;
-    if (score >= 80 && context.thesis?.status !== 'broken') {
-      return {
-        action: 'WATCH',
-        reason: `Total score ${score} passes candidate threshold`,
-        severity: 'medium',
-        triggeredRules: [this.ruleCode],
-        thesisStatus: context.thesis?.status ?? 'intact'
-      };
-    }
+  supports(context: RuleContext): boolean {
+    return context.thesis?.status !== 'broken';
+  }
 
-    return null;
+  async evaluate(context: RuleContext): Promise<RuleResult> {
+    const score = context.features.totalScore ?? 0;
+    const triggered = score >= 80;
+
+    return {
+      ruleId: this.id,
+      ruleName: this.name,
+      category: this.category,
+      action: triggered ? 'WATCH' : 'NO_ACTION',
+      severity: 'info',
+      triggered,
+      reason: triggered ? `Total score ${score} passes candidate threshold` : 'Score below threshold'
+    };
   }
 }

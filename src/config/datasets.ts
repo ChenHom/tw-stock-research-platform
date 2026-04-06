@@ -1,5 +1,12 @@
 import type { AccountTier, QueryMode } from '../core/types/common.js';
 
+export interface CostModel {
+  freeTierPerRequest: number;
+  backerTierPerRequest?: number;
+  sponsorTierPerRequest?: number;
+  bulkMultiplier?: number;
+}
+
 export interface DatasetCapability {
   dataset: string;
   sourceOfTruth: string;
@@ -7,6 +14,7 @@ export interface DatasetCapability {
   freeTierMode: QueryMode;
   premiumMode: QueryMode;
   costWeight: number;
+  costModel: CostModel; // 新增：用於預算預估
   mvpRequired: boolean;
   notes?: string;
 }
@@ -19,6 +27,7 @@ export const DATASET_CAPABILITIES: DatasetCapability[] = [
     freeTierMode: 'bulk',
     premiumMode: 'bulk',
     costWeight: 1,
+    costModel: { freeTierPerRequest: 0, bulkMultiplier: 1 }, // TWSE is free
     mvpRequired: true,
     notes: '全市場初篩'
   },
@@ -29,6 +38,7 @@ export const DATASET_CAPABILITIES: DatasetCapability[] = [
     freeTierMode: 'bulk',
     premiumMode: 'bulk',
     costWeight: 1,
+    costModel: { freeTierPerRequest: 0, bulkMultiplier: 1 },
     mvpRequired: true
   },
   {
@@ -38,6 +48,7 @@ export const DATASET_CAPABILITIES: DatasetCapability[] = [
     freeTierMode: 'per_stock',
     premiumMode: 'bulk',
     costWeight: 3,
+    costModel: { freeTierPerRequest: 2, bulkMultiplier: 50 },
     mvpRequired: true
   },
   {
@@ -47,6 +58,7 @@ export const DATASET_CAPABILITIES: DatasetCapability[] = [
     freeTierMode: 'per_stock',
     premiumMode: 'bulk',
     costWeight: 4,
+    costModel: { freeTierPerRequest: 5, bulkMultiplier: 100 },
     mvpRequired: true
   },
   {
@@ -56,6 +68,7 @@ export const DATASET_CAPABILITIES: DatasetCapability[] = [
     freeTierMode: 'per_stock',
     premiumMode: 'bulk',
     costWeight: 2,
+    costModel: { freeTierPerRequest: 1, bulkMultiplier: 30 },
     mvpRequired: true
   },
   {
@@ -65,6 +78,7 @@ export const DATASET_CAPABILITIES: DatasetCapability[] = [
     freeTierMode: 'per_stock',
     premiumMode: 'bulk',
     costWeight: 2,
+    costModel: { freeTierPerRequest: 1, bulkMultiplier: 30 },
     mvpRequired: true
   },
   {
@@ -74,6 +88,7 @@ export const DATASET_CAPABILITIES: DatasetCapability[] = [
     freeTierMode: 'per_stock',
     premiumMode: 'bulk',
     costWeight: 2,
+    costModel: { freeTierPerRequest: 1, bulkMultiplier: 30 },
     mvpRequired: false
   },
   {
@@ -83,6 +98,7 @@ export const DATASET_CAPABILITIES: DatasetCapability[] = [
     freeTierMode: 'keyword',
     premiumMode: 'keyword',
     costWeight: 1,
+    costModel: { freeTierPerRequest: 1, bulkMultiplier: 1 },
     mvpRequired: true,
     notes: '僅作線索'
   },
@@ -93,6 +109,7 @@ export const DATASET_CAPABILITIES: DatasetCapability[] = [
     freeTierMode: 'disabled',
     premiumMode: 'per_stock',
     costWeight: 5,
+    costModel: { freeTierPerRequest: 10, bulkMultiplier: 100 },
     mvpRequired: false
   }
 ];
