@@ -10,36 +10,36 @@
 - [x] 預算預估與成本模型 (Cost Model)
 - [x] 核心單元測試 (tests/core-modules.test.ts)
 - [x] 資料庫遷移管理系統 (MigrationManager)
+- [x] 節奏驅動快取系統 (CacheStore / TTL Policy)
 
-## Phase 1 - Data Providers (Current)
-- [ ] **TwseOpenApiProvider** (實作 fetch + 官方資料優先映射)
-- [ ] **FinMindProvider** (實作 fetch + 支援歷史序列)
+## Phase 1 - Data Providers (Completed)
+- [x] **TwseOpenApiProvider** (實作 fetch + 快取接入)
+- [x] **FinMindProvider** (實作 fetch + 快取接入 + Token 驗證)
 - [ ] RssNewsProvider
 - [ ] Official backfill adapters (MOPS/TAIFEX)
 
-## Phase 2 - Persistence & Storage
+## Phase 2 - Persistence & Storage (In Progress)
 - [ ] PostgreSQL repositories (支援 versioning 讀寫)
-- [ ] Redis cache adapter (支援 SourceMetadata 儲存)
+- [ ] Redis cache adapter (替代 MemoryCache)
 - [ ] Data lineage logger (紀錄採用與衝突決策)
 
 ## Phase 3 - Feature Layer (Evidence Generation)
-- [ ] Price features (RSI, MA, Alpha)
+- [x] **FeatureBuilder** (實作基礎計分與均線計算)
+- [ ] Price features (RSI, Alpha)
 - [ ] Chip features (Institutions, Margin)
 - [ ] Fundamental features (Revenue Accel, Margin Growth)
-- [ ] Event features (Earnings, Calendar)
 
 ## Phase 4 - Research & Thesis
-- [ ] Thesis Tracker 自動狀態評估 (Intact/Broken)
+- [x] **Thesis Tracker** 自動狀態評估 (Intact/Broken)
 - [ ] Valuation Service (PER Band / Peer Group)
 - [ ] Catalyst Calendar 標準化
 
 ## Phase 5 - Rule Implementation (Plugins)
-- [ ] Risk Rules (Stop loss, Drawdown)
-- [ ] Strategy Rules (Momentum, Value)
-- [ ] Custom Override Rules
-- [ ] Decision Synthesis Logic
+- [x] **RuleEngine** 分相執行與熔斷機制
+- [x] 基礎風險規則 (Stop loss, Thesis broken)
+- [ ] 策略規則 (Momentum, Value)
 
 ## Phase 6 - Outputs & Reporting
-- [ ] 中文化 Markdown 報告產出
+- [x] **ReportGenerator** 中文化 Markdown 報告
 - [ ] JSON decision packet for automation
 - [ ] LINE / Mobile summary integration
