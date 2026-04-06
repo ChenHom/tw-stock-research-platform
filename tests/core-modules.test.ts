@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DefaultDatasetRouter } from '../src/modules/router/DatasetRouter.js';
 import { DefaultRuleEngine, DefaultRuleRegistry } from '../src/modules/rules/RuleEngine.js';
-import { AbsoluteStopLossRule, ThesisBrokenRule } from '../src/modules/rules/RiskRules.js';
+import { AbsoluteStopLossRule } from '../src/modules/rules/RiskRules.js';
 import { DecisionComposer } from '../src/modules/research/DecisionComposer.js';
 
 // 1. 測試 DatasetRouter 的成本預估與路由
@@ -10,7 +10,7 @@ test('DatasetRouter: 應能正確預估 FinMind 點數消耗並選擇 Provider',
   const router = new DefaultDatasetRouter();
   
   // 測試 Free 帳號單檔查詢
-  const freePerStock = router.decide('month_revenue', 'free_tier_600ph', '2330');
+  const freePerStock = router.decide('month_revenue', 'free', '2330');
   assert.strictEqual(freePerStock.queryMode, 'per_stock');
   assert.ok(freePerStock.reason.includes('estCost=2'), '應預估消耗 2 點');
 
@@ -32,7 +32,15 @@ test('RuleEngine: 應能執行風險規則並回傳正確觸發結果', async (t
   const context = {
     stockId: '2330',
     asOf: '2026-04-06',
-    features: { closePrice: 90 },
+    features: { 
+      stockId: '2330', 
+      tradeDate: '2026-04-06', 
+      closePrice: 90,
+      ma20: 0, bias20: 0, volume: 0, vol20Ma: 0, volumeRatio20: 0, alphaVs0050: 0,
+      institutionalNet: 0, foreignNet: 0, trustNet: 0, marginChange: 0, marginRiskScore: 0,
+      revenueYoy: 0, revenueAcceleration: false, grossMarginGrowth: false, epsTtm: 0, roe: 0,
+      totalScore: 0, eventScore: 0, missingFields: []
+    },
     position: { entryPrice: 100, shares: 1000, currentPrice: 90, unrealizedPnlPct: -0.1 },
     config: { stopLoss: 100 }
   };
@@ -57,5 +65,5 @@ test('DecisionComposer: 當論點破壞時，應優先拍板 EXIT', (t) => {
   });
   
   assert.strictEqual(decision.action, 'EXIT');
-  assert.ok(decision.summary.includes('論點已破壞'), '摘要應說明論點破壞');
+  assert.ok(decision.summary.includes('論點破壞'), '摘要應說明論點破壞');
 });

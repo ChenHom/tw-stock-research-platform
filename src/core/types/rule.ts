@@ -1,3 +1,6 @@
+import type { StockFeatureSet } from './feature.js';
+import type { ThesisStatus, Direction } from './common.js';
+
 export type RuleAction =
   | 'BUY'
   | 'ADD'
@@ -17,7 +20,7 @@ export type RuleCategory = 'risk' | 'entry' | 'exit' | 'filter' | 'thesis';
 export interface RuleContext {
   stockId: string;
   asOf: string; // ISO Date String
-  features: Record<string, any>; // 當前的特徵集 (Feature Snapshot)
+  features: StockFeatureSet; // 強化：具備型別的特徵集
   position?: {
     entryPrice: number;
     shares: number;
@@ -27,8 +30,8 @@ export interface RuleContext {
   thesis?: {
     id: string;
     version: number;
-    status: 'intact' | 'weakened' | 'broken';
-    direction: 'long' | 'short' | 'neutral';
+    status: ThesisStatus;
+    direction: Direction;
   };
   upcomingEvents?: Array<{
     type: string;
@@ -64,6 +67,6 @@ export interface FinalDecision {
   summary: string;
   supportingRules: string[];
   blockingRules: string[];
-  thesisStatus: 'intact' | 'weakened' | 'broken' | 'none';
+  thesisStatus: ThesisStatus | 'none';
   composerVersion: string;
 }

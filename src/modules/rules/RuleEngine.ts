@@ -5,6 +5,9 @@ export class DefaultRuleRegistry implements RuleRegistry {
   private rules = new Map<string, BaseRule>();
 
   register(rule: BaseRule): void {
+    if (this.rules.has(rule.id)) {
+      throw new Error(`[規則註冊失敗] 重複的規則 ID: ${rule.id}`);
+    }
     this.rules.set(rule.id, rule);
   }
 
@@ -24,14 +27,34 @@ export class DefaultRuleRegistry implements RuleRegistry {
 export class DefaultRuleEngine implements RuleEngineContract {
   constructor(private readonly registry: RuleRegistry) {}
 
+  /**
+   * 執行規則評估。
+   * 執行順序 (Phase)：
+   * 1. filter: 決定是否要繼續處理此股票 (若 BLOCK 則跳過後續)
+   * 2. risk: 決定是否存在即時風險 (若觸發 Critical 則 short-circuit)
+   * 3. entry/exit/thesis: 其他策略規則
+   */
   async evaluate(context: RuleContext): Promise<RuleResult[]> {
-    const orderedRules = this.registry.list().slice().sort((a, b) => a.priority - b.priority);
     const results: RuleResult[] = [];
+    const phases: RuleCategory[][] = [['filter'], ['risk'], ['entry', 'exit', 'thesis']];
 
-    for (const rule of orderedRules) {
-      if (rule.supports(context)) {
-        const decision = await rule.evaluate(context);
-        results.push(decision);
+    for (const phaseCategories of phases) {
+      const phaseRules = this.registry.list()
+        .filter(r => phaseCategories.includes(r.category))
+        .sort((a, b) => a.priority - b.priority);
+
+      for (const rule of phaseRules) {
+        if (!rule.supports(context)) continue;
+
+        const result = await rule.evaluate(context);
+        results.push(result);
+
+        // Short-circuit 邏輯
+        if (result.triggered) {
+          // 若 Filter 階段觸發 BLOCK，或 Risk 階段觸發 Critical 動作，則停止後續評估
+          if (result.category === 'filter' && result.action === 'BLOCK') return results;
+          if (result.category === 'risk' && result.severity === 'critical') return results;
+        }
       }
     }
 

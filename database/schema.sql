@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS market_daily (
     turnover                 BIGINT,
     transaction_count        BIGINT,
     source_system            VARCHAR(50) NOT NULL,
-    source_meta              JSONB, -- 儲存 SourceMetadata 內容
+    source_meta              JSONB,
     fetched_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (stock_id, trade_date)
 );
@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS valuation_daily (
     dividend_yield           NUMERIC(14,4),
     market_cap               NUMERIC(20,2),
     source_system            VARCHAR(50) NOT NULL,
+    source_meta              JSONB,
     fetched_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (stock_id, trade_date)
 );
@@ -79,6 +80,7 @@ CREATE TABLE IF NOT EXISTS month_revenue (
     revenue_yoy              NUMERIC(14,4),
     revenue_mom              NUMERIC(14,4),
     source_system            VARCHAR(50) NOT NULL,
+    source_meta              JSONB,
     fetched_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (stock_id, revenue_month)
 );
@@ -94,6 +96,7 @@ CREATE TABLE IF NOT EXISTS feature_snapshots (
     snapshot_at              TIMESTAMPTZ NOT NULL,
     feature_set_version      TEXT NOT NULL,
     payload                  JSONB NOT NULL, -- 完整的特徵鍵值對
+    source_meta              JSONB, -- 記錄產出此快照的資料來源參考 (Lineage)
     created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -102,12 +105,12 @@ CREATE TABLE IF NOT EXISTS valuation_snapshots (
     id                       BIGSERIAL PRIMARY KEY,
     stock_id                 VARCHAR(10) NOT NULL REFERENCES stock_master(stock_id),
     as_of_date               DATE NOT NULL,
-    method                   TEXT NOT NULL, -- e.g., 'PER_BAND', 'DCF', 'PEER_COMP'
+    method                   TEXT NOT NULL, 
     fair_value_base          NUMERIC(12,4),
     fair_value_bull          NUMERIC(12,4),
     fair_value_bear          NUMERIC(12,4),
-    assumptions              JSONB, -- 關鍵假設 (e.g., WACC, Growth Rate)
-    source_refs              JSONB, -- 關連的證據 ID (e.g., feature_snapshot_id)
+    assumptions              JSONB, 
+    source_meta              JSONB, -- 溯源：記錄參考的 feature_snapshot_id 或外部報告
     created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -126,9 +129,9 @@ CREATE TABLE IF NOT EXISTS thesis_versions (
     id                       BIGSERIAL PRIMARY KEY,
     thesis_id                UUID NOT NULL REFERENCES thesis_heads(thesis_id),
     version                  INT NOT NULL,
-    status                   TEXT NOT NULL, -- intact / weakened / broken / archived
+    status                   TEXT NOT NULL CHECK (status IN ('draft', 'active', 'weakened', 'broken', 'archived')),
     statement                TEXT NOT NULL,
-    direction                TEXT NOT NULL, -- long / short / neutral
+    direction                TEXT NOT NULL,
     conviction_score         NUMERIC(5,2),
     created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (thesis_id, version)
@@ -139,9 +142,9 @@ CREATE TABLE IF NOT EXISTS thesis_evidence_links (
     id                       BIGSERIAL PRIMARY KEY,
     thesis_id                UUID NOT NULL,
     thesis_version           INT NOT NULL,
-    evidence_type            TEXT NOT NULL, -- feature_snapshot / event / valuation_snapshot / news_verified
-    evidence_ref_id          TEXT NOT NULL, -- 指向對應表的 ID
-    pillar_key               TEXT,          -- 該證據支持的論點支柱 Key
+    evidence_type            TEXT NOT NULL, -- feature_snapshot / event / valuation_snapshot
+    evidence_ref_id          TEXT NOT NULL, 
+    pillar_key               TEXT,          
     polarity                 TEXT NOT NULL, -- support / risk / disconfirm
     note                     TEXT,
     linked_at                TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -151,32 +154,32 @@ CREATE TABLE IF NOT EXISTS thesis_evidence_links (
 -- 5. Rules & Decisions
 -- ---------------------------------------------------------
 
--- 規則執行日誌 (Plugin-based Rule Engine 產出)
 CREATE TABLE IF NOT EXISTS rule_execution_log (
     log_id                   BIGSERIAL PRIMARY KEY,
     stock_id                 VARCHAR(10) REFERENCES stock_master(stock_id),
     trade_date               DATE NOT NULL,
     rule_id                  VARCHAR(100) NOT NULL,
-    category                 VARCHAR(20) NOT NULL, -- risk / entry / exit / filter / thesis
-    action                   VARCHAR(20) NOT NULL, -- BUY / HOLD / SELL / BLOCK / etc.
-    severity                 VARCHAR(20) NOT NULL, -- info / warning / critical
+    category                 VARCHAR(20) NOT NULL, 
+    action                   VARCHAR(20) NOT NULL, 
+    severity                 VARCHAR(20) NOT NULL, 
     triggered                BOOLEAN NOT NULL,
     reason                   TEXT NOT NULL,
     context_json             JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 最終決策合成層 (Decision Composer 產出)
+-- 最終決策合成層
 CREATE TABLE IF NOT EXISTS final_decisions (
     id                       BIGSERIAL PRIMARY KEY,
     stock_id                 VARCHAR(10) NOT NULL REFERENCES stock_master(stock_id),
     decision_date            DATE NOT NULL,
-    action                   VARCHAR(20) NOT NULL, -- BUY / ADD / HOLD / TRIM / SELL / EXIT / WATCH
+    action                   VARCHAR(20) NOT NULL, 
     confidence               NUMERIC(5,2),
     summary                  TEXT NOT NULL,
     thesis_status            TEXT NOT NULL,
     supporting_rule_ids      JSONB,
     blocking_rule_ids        JSONB,
+    input_refs               JSONB, -- 溯源：記錄當下參考的 thesis_version, feature_snapshot_id 等
     composer_version         TEXT NOT NULL,
     created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -193,6 +196,7 @@ CREATE TABLE IF NOT EXISTS company_events (
     title                    TEXT NOT NULL,
     summary                  TEXT,
     source_system            VARCHAR(50) NOT NULL,
+    source_meta              JSONB,
     created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -203,7 +207,7 @@ CREATE TABLE IF NOT EXISTS dataset_fetch_log (
     query_mode               VARCHAR(30) NOT NULL,
     status                   VARCHAR(20) NOT NULL,
     latency_ms               INTEGER,
-    cost_units               NUMERIC(10,2), -- 記錄消耗的 FinMind 點數或額度
+    cost_units               NUMERIC(10,2), 
     is_fallback              BOOLEAN NOT NULL DEFAULT FALSE,
     error_message            TEXT,
     requested_at             TIMESTAMPTZ NOT NULL DEFAULT NOW()

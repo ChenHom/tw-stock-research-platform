@@ -119,5 +119,5 @@ export function resolveQueryMode(dataset: string, accountTier: AccountTier): Que
   if (!capability) {
     throw new Error(`Unknown dataset: ${dataset}`);
   }
-  return accountTier === 'free_tier_600ph' ? capability.freeTierMode : capability.premiumMode;
+  return accountTier === 'free' ? capability.freeTierMode : capability.premiumMode;
 }
