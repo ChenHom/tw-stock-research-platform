@@ -3,14 +3,14 @@
 ## `src/modules/router/DatasetRouter.ts`
 ### 責任
 - 根據 `dataset + query intent + account tier` 決定 provider 與查詢模式。
-- **預算感知**：在分發前計算點數消耗 (Cost Model)，實施降級或轉向官方免費來源。
+- **成本控管**：在分發前計算點數消耗 (Cost Model)，實施降級或轉向官方免費來源。
 - **決策日誌**：產出 `SourceMetadata` 用於追蹤資料採用邏輯。
 
 ---
 
 ## `src/modules/budget/RateBudgetGuard.ts`
 ### 責任
-- 追蹤各 Provider 的實時 API 配額。
+- 追蹤各 Provider 的即時 API 配額。
 - 提供中文 Log 預警：當達到門檻時提醒進入「降級模式」或「強制中止」。
 
 ---
@@ -50,4 +50,4 @@
 - 輸出中文化報告：
   - 持股/追蹤報告 (Markdown)
   - 論點變動報告
-  - 預算/點數告警摘要
+  - 預算/點數警告摘要
