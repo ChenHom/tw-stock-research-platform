@@ -18,19 +18,21 @@
 - [ ] RssNewsProvider
 - [ ] Official backfill adapters (MOPS/TAIFEX)
 
-## Phase 2 - Persistence & Storage (In Progress)
-- [ ] PostgreSQL repositories (支援 versioning 讀寫)
-- [ ] Redis cache adapter (替代 MemoryCache)
-- [ ] Data lineage logger (紀錄採用與衝突決策)
+## Phase 2 - Persistence & Storage (Completed)
+- [x] PostgreSQL repositories (支援 versioning 讀寫)
+- [x] **Research Run 留痕** (StartedAt/CompletedAt/Results)
+- [x] **ResearchRunQueryService** (歷史任務回溯查詢)
+- [x] 資料庫遷移管理系統 (MigrationManager)
+- [x] 儲存方案靈活切換 (In-Memory / Postgres)
 
 ## Phase 3 - Feature Layer (Evidence Generation)
-- [x] **FeatureBuilder** (實作基礎計分與均線計算)
-- [ ] Price features (RSI, Alpha)
-- [ ] Chip features (Institutions, Margin)
-- [ ] Fundamental features (Revenue Accel, Margin Growth)
+- [x] **FeatureBuilder** 三層架構 (Fundamental, Chip, Technical)
+- [x] **Alpha vs 0050** 真基準計算
+- [x] **新聞事件加成** (具備時間衰減權重)
 
 ## Phase 4 - Research & Thesis
 - [x] **Thesis Tracker** 自動狀態評估 (Intact/Broken)
+- [x] **ScreeningService** 候選池動能篩選
 - [ ] Valuation Service (PER Band / Peer Group)
 - [ ] Catalyst Calendar 標準化
 
@@ -40,6 +42,7 @@
 - [ ] 策略規則 (Momentum, Value)
 
 ## Phase 6 - Outputs & Reporting
-- [x] **ReportGenerator** 中文化 Markdown 報告
+- [x] **CandidateResearchReportGenerator** Markdown 表格綜整
+- [x] **CLI 工具** (run-research / run-candidates)
 - [ ] JSON decision packet for automation
 - [ ] LINE / Mobile summary integration

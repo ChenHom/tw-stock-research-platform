@@ -23,6 +23,10 @@
 - **節奏驅動 TTL**：快取過期時間 (TTL) 非固定值，而是根據 Dataset 的官方更新節奏決定（例如：市場價量 4 小時、月營收 24 小時、新聞 15 分鐘）。
 - **快取一致性**：快取鍵包含 `dataset:mode:stockId:date`，確保資料時點與權限等級的正確性。
 
+### 1.6 研究任務留痕 (Research Run Tracking)
+- **任務層級紀錄 (Run-level)**：系統不僅儲存單檔研究結果，還記錄每一次候選池研究任務 (Research Run) 的輸入條件、TopN 設定、執行時長與最終清單排名。
+- **執行狀態追蹤**：追蹤任務的生命週期 (`running` -> `completed`/`failed`)，確保批次執行過程中的異常可被偵測。
+
 ---
 
 ## 2. 資料流 (Data Flow)
@@ -34,6 +38,9 @@
 [資料路由層] DatasetRouter (成本預估 + Provider 選擇)
         │
         ▼
+[篩選層] ScreeningService ───► [任務層] ResearchRuns (執行留痕)
+        │                                     │
+        ▼                                     ▼
 [資料處理層] FeatureBuilder (特徵工程) ───► [快照層] Feature Snapshots (凍結數據)
         │                                     │
         ▼                                     ▼
@@ -43,7 +50,7 @@
 [決策層] RuleEngine (執行外掛規則) ───► DecisionComposer (最終拍板)
                                               │
                                               ▼
-                                     [輸出層] Markdown / LINE 報告
+                                     [查詢與輸出層] ResearchRunQuery / Markdown 報告
 ```
 
 ---

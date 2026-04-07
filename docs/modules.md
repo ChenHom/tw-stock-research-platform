@@ -18,11 +18,37 @@
 ## `src/modules/features/FeatureBuilder.ts`
 ### 責任
 - 聚合 Market / Chip / Fundamental / Event 等原始資料。
+- **三層特徵架構**：
+  - 基本面：營收成長、三率趨勢、EPS TTM、ROE。
+  - 籌碼/風險：法人買賣、融資風險。
+  - 交易位置：MA20、乖離、成交量比、Alpha (vs 0050)。
 - **凍結快照**：產出 `FeatureSnapshot` 並寫入 DB，作為後續研究論點的「證據來源」。
 
 ---
 
-## `src/modules/research/ThesisTracker.ts`
+## `src/app/services/ScreeningService.ts`
+### 責任
+- **漏斗第一層**：執行全市場快照掃描。
+- **初篩過濾**：根據量價、本益比、殖利率與營收動能找出值得深度研究的候選股。
+
+---
+
+## `src/app/services/CandidateResearchService.ts`
+### 責任
+- **研究協調 (Orchestration)**：串接篩選與單檔研究 Pipeline。
+- **任務管理**：負責 Research Run 的生命週期管理與結果儲存。
+- **批次並行**：支援小批次並行研究，兼顧效能與 API 配額安全。
+
+---
+
+## `src/app/services/ResearchRunQueryService.ts`
+### 責任
+- **研究回溯**：提供高階查詢介面，查回最近的研究摘要或歷史任務詳細清單。
+- **跨任務比對**：作為後續實作任務間差異分析的資料入口。
+
+---
+
+## `src/modules/rules/RuleEngine.ts`
 ### 責任
 - **論點版本化**：分離 `createThesis` (建立 Head) 與 `appendVersion` (版本推進)，維持 `thesisId` 的持續性。
 - **證據連結 (Evidence Linking)**：將 論點 與具體的 `FeatureSnapshot` 或事件 ID 進行關聯。
