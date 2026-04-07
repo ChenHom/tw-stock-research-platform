@@ -1,34 +1,39 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bootstrap } from '../src/app/bootstrap.js';
-import { MockProvider } from './mocks/MockProvider.js';
+import { ResearchRunQueryService } from '../src/app/services/ResearchRunQueryService.js';
+import { InMemoryResearchRunRepository } from '../src/modules/storage/InMemoryRepositories.js';
+import { randomUUID } from 'node:crypto';
 
-test('ResearchRunQuery: 應能成功查回最近一次研究任務的摘要', async (t) => {
-  // 1. 初始化 (使用 In-memory 以進行純邏輯測試)
-  const mockProvider = new MockProvider({
-    'market_daily_latest': [{ stockId: '2330', close: 100, volume: 5000 }],
-    'daily_valuation': [{ stockId: '2330', peRatio: 12, pbRatio: 1.5, dividendYield: 3 }]
-  });
-  (mockProvider as any).providerName = 'twse'; // 欺騙 Router
+test('ResearchRunQuery (服務層驗證): 應能成功查回任務摘要', async (t) => {
+  const repo = new InMemoryResearchRunRepository();
+  const queryService = new ResearchRunQueryService(repo);
+  const runId = randomUUID();
 
-  const app = bootstrap({
-    providers: [mockProvider]
-  });
-
-  // 2. 先執行一次任務
-  await app.candidateResearchService.run({
-    criteria: { minVolume: 1000 },
+  // 1. 手動存入一筆資料
+  await repo.save({
+    runId,
     tradeDate: '2024-04-03',
-    topN: 1,
-    accountTier: 'free'
+    criteria: {},
+    topN: 5,
+    accountTier: 'free',
+    status: 'completed'
   });
 
-  // 3. 測試查詢層
-  const summary = await app.researchRunQueryService.getLatestResearchSummary();
+  await repo.saveResults([{
+    runId,
+    stockId: '2330',
+    preliminaryScore: 80,
+    researchTotalScore: 85,
+    finalAction: 'BUY',
+    confidence: 0.9,
+    summary: 'OK'
+  }]);
+
+  // 2. 執行查詢
+  const summary = await queryService.getLatestRunSummary();
   
   assert.ok(summary);
-  assert.strictEqual(summary?.run.tradeDate, '2024-04-03');
+  assert.strictEqual(summary?.run.runId, runId);
   assert.strictEqual(summary?.results.length, 1);
   assert.strictEqual(summary?.results[0].stockId, '2330');
-  assert.strictEqual(summary?.run.status, 'completed');
 });

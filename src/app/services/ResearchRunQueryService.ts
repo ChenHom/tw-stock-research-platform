@@ -1,36 +1,35 @@
 import type { ResearchRunRepository, ResearchRun, CandidateResearchResultRecord } from '../../core/contracts/storage.js';
 
+export interface RunSummary {
+  run: ResearchRun;
+  results: CandidateResearchResultRecord[];
+}
+
 export class ResearchRunQueryService {
   constructor(private readonly repo: ResearchRunRepository) {}
 
   /**
-   * 獲取最近一次完整的研究結果與報表摘要
+   * 獲取最近一次的研究任務摘要
    */
-  async getLatestResearchSummary() {
-    const latestRun = await this.repo.getLatestRun();
-    if (!latestRun) return null;
+  async getLatestRunSummary(): Promise<RunSummary | null> {
+    const run = await this.repo.getLatestRun();
+    if (!run) return null;
 
-    const results = await this.repo.getRunResults(latestRun.runId);
-    
-    return {
-      run: latestRun,
-      results
-    };
+    const results = await this.repo.getRunResults(run.runId);
+    return { run, results };
   }
 
   /**
-   * 根據日期查回當天的所有研究記錄
+   * 根據日期查詢當天的所有研究記錄
    */
-  async getDailyHistory(date: string) {
-    const runs = await this.repo.findRunsByDate(date);
-    return runs;
+  async findRunsByDate(date: string): Promise<ResearchRun[]> {
+    return this.repo.findRunsByDate(date);
   }
 
   /**
-   * 獲取特定任務的詳細結果
+   * 獲取特定研究任務的詳細結果
    */
-  async getRunDetails(runId: string) {
-    const results = await this.repo.getRunResults(runId);
-    return results;
+  async getRunDetail(runId: string): Promise<CandidateResearchResultRecord[]> {
+    return this.repo.getRunResults(runId);
   }
 }
