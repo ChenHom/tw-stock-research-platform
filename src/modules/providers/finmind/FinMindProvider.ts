@@ -189,14 +189,30 @@ export class FinMindProvider implements DataProvider<
             dividendYield: parseFloat(r.dividend_yield) || 0
           }));
 
-        case 'financial_statements':
-          return raw.map(r => ({
-            stockId: r.stock_id || '',
-            year: parseInt(r.date?.split('-')[0], 10) || 0,
-            date: r.date || '',
-            type: r.type || '',
-            value: parseFloat(r.value) || 0
-          }));
+        case 'financial_statements': {
+          const groups = new Map<string, any>();
+          for (const r of raw) {
+            const date = r.date;
+            if (!groups.has(date)) {
+              groups.set(date, { 
+                stockId: r.stock_id, 
+                date: date, 
+                year: parseInt(date.split('-')[0], 10),
+                quarter: r.type.includes('Q') ? r.type : 'N/A', // 有些資料集會帶 Q1, Q2
+                entries: {} as Record<string, number> 
+              });
+            }
+            const g = groups.get(date);
+            const val = parseFloat(r.value) || 0;
+            g.entries[r.type] = val;
+            
+            // 提取核心欄位方便後續使用
+            if (r.type === 'EPS' || r.type === '每股盈餘') g.eps = val;
+            if (r.type === 'ROE' || r.type === '股東權益報酬率') g.roe = val;
+            if (r.type === 'Revenue' || r.type === '營業收入') g.revenue = val;
+          }
+          return Array.from(groups.values()).sort((a, b) => b.date.localeCompare(a.date));
+        }
 
         default:
           return raw;

@@ -63,22 +63,13 @@ export class FeatureBuilder implements FeatureBuilderContract {
   }
 
   private calculateEpsTtm(financials: any[]): number {
-    // 篩選出科目為 EPS 的行，並按日期排序取最近 4 季
-    const epsRows = financials
-      .filter(f => f.type === 'EPS' || f.type === '每股盈餘')
-      .sort((a, b) => b.date.localeCompare(a.date));
-    
-    // 加總最近 4 筆 (TTM)
-    return epsRows.slice(0, 4).reduce((acc, cur) => acc + (cur.value || 0), 0);
+    // 取得最近 4 季 (financials 已在 provider 完成排序)
+    return financials.slice(0, 4).reduce((acc, cur) => acc + (cur.eps || 0), 0);
   }
 
   private extractLatestRoe(financials: any[]): number {
-    // 取得最新一季的 ROE (若有)
-    const roeRow = financials
-      .filter(f => f.type === 'ROE' || f.type === '股東權益報酬率' || f.type === 'Return_on_Equity_A_Percent')
-      .sort((a, b) => b.date.localeCompare(a.date))[0];
-    
-    return roeRow?.value || 0;
+    // 取得最新一季的 ROE
+    return financials[0]?.roe || 0;
   }
 
   private calculateMA(history: any[], window: number): number {
