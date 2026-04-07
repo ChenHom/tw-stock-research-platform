@@ -43,11 +43,13 @@ export class ResearchPipelineService {
     // 財報抓取 (TTM 需 4 季)
     const financialStatements = await this.fetchRange('financial_statements', input.stockId, getDaysAgo(365, new Date(input.tradeDate)), input.tradeDate, input, budget);
     
-    // 營收往前推 400 天確保能計算 YoY
+    // 營收往前推 400 天確保能計算 YoY 與趨勢 (P0-3)
     const monthRevenue = await this.fetchRange('month_revenue', input.stockId, getDaysAgo(400, new Date(input.tradeDate)), input.tradeDate, input, budget);
     
-    // 抓取個股與 0050 基準的歷史資料 (P0-3)
+    // 抓取個股歷史日線
     const history = await this.fetchRange('market_daily_history', input.stockId, getDaysAgo(30, new Date(input.tradeDate)), input.tradeDate, input, budget);
+    
+    // 抓取 0050 基準資料用於 Alpha 計算 (P0-3)
     const benchmark = await this.fetchRange('market_daily_history', '0050', getDaysAgo(30, new Date(input.tradeDate)), input.tradeDate, input, budget);
 
     // 抓取新聞 (P0-3)
@@ -69,8 +71,8 @@ export class ResearchPipelineService {
       financialStatements: financialStatements?.data || [],
       news: news?.data || [],
       history: history?.data || [],
-      benchmarkHistory: benchmark?.data || [], // 真 benchmark 入注
-      monthRevenueHistory: monthRevenue?.data || [] // 完整歷史入注
+      benchmarkHistory: benchmark?.data || [], // 補傳 benchmark 歷史
+      monthRevenueHistory: monthRevenue?.data || [] // 補傳營收完整歷史
     };
 
     const featureSet = this.deps.featureBuilder.build(featureInput);
