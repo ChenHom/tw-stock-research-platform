@@ -38,6 +38,7 @@ test('FeatureBuilder (可信度驗證): 應正確計算歷史序列與財報 TTM
   // 驗證總分: 
   // Close > MA20 (+15)
   // Vol > VolMA (+10)
+  // News Neutral (+5)
   // EPS TTM 無加分 (門檻 20)
-  assert.strictEqual(result.totalScore, 25);
+  assert.strictEqual(result.totalScore, 30);
 });

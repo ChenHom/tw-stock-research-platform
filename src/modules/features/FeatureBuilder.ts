@@ -3,7 +3,12 @@ import type { StockFeatureSet } from '../../core/types/feature.js';
 
 export class FeatureBuilder implements FeatureBuilderContract {
   build(input: FeatureBuildInput): StockFeatureSet {
-    const { marketDaily, valuationDaily, institutionalFlow, monthRevenue, history, marginShort, financialStatements, news } = input as any;
+    const { 
+      marketDaily, valuationDaily, institutionalFlow, 
+      monthRevenue, history, marginShort, 
+      financialStatements, news 
+    } = input as any;
+    
     const missingFields: string[] = [];
 
     // 1. 基礎欄位檢查
@@ -13,40 +18,44 @@ export class FeatureBuilder implements FeatureBuilderContract {
     if (!monthRevenue) missingFields.push('month_revenue');
     if (!financialStatements || financialStatements.length === 0) missingFields.push('financial_statements');
 
-    // 2. 計算 MA 與乖離 (技術面)
-    const ma20 = this.calculateMA(history || [], 20);
-    const vol20Ma = this.calculateVolMA(history || [], 20);
-    const closePrice = marketDaily?.close ?? 0;
-
-    // 3. 籌碼與風險
-    const marginChange = marginShort?.marginChange ?? 0;
-    const marginRiskScore = this.calculateMarginRisk(marginShort);
-
-    // 4. 財報特徵 (基本面升級)
+    // 2. 基本面特徵 (Fundamental Layer)
     const epsTtm = this.calculateEpsTtm(financialStatements || []);
     const roe = this.extractLatestRoe(financialStatements || []);
     const { grossMarginGrowth, operatingMarginGrowth } = this.calculateMarginGrowth(financialStatements || []);
+    const revenueYoy = monthRevenue?.revenueYoy ?? 0;
 
-    // 5. 事件與新聞
+    // 3. 籌碼與風險 (Chip/Risk Layer)
+    const institutionalNet = institutionalFlow?.totalNet ?? 0;
+    const marginChange = marginShort?.marginChange ?? 0;
+    const marginRiskScore = this.calculateMarginRisk(marginShort);
+
+    // 4. 交易位置 (Technical Layer)
+    const ma20 = this.calculateMA(history || [], 20);
+    const closePrice = marketDaily?.close ?? 0;
+    const bias20 = ma20 > 0 ? ((closePrice - ma20) / ma20) * 100 : 0;
+    const vol20Ma = this.calculateVolMA(history || [], 20);
+    const volumeRatio20 = vol20Ma > 0 ? (marketDaily?.volume ?? 0) / vol20Ma : 1;
+
+    // 5. 事件與新聞 (Event Layer)
     const eventScore = this.calculateEventScore(news || []);
 
-    // 6. 綜合計分 (總分 100)
+    // 6. 綜合計分 (總分 100) - 產品目標權重
     let totalScore = 0;
     
-    // 基本面 (40分)
+    // 基本面 (40分)：獲利能力 + 成長趨勢
     if (epsTtm > 20) totalScore += 10;
     if (roe > 15) totalScore += 10;
-    if (monthRevenue && monthRevenue.revenueYoy > 0.2) totalScore += 10;
+    if (revenueYoy > 0.2) totalScore += 10;
     if (grossMarginGrowth) totalScore += 10;
 
-    // 籌碼面 (25分)
-    if (institutionalFlow && institutionalFlow.totalNet > 0) totalScore += 25;
+    // 籌碼面 (25分)：法人認同
+    if (institutionalNet > 0) totalScore += 25;
 
-    // 技術面 (25分)
+    // 技術面 (25分)：趨勢與位置
     if (closePrice > ma20 && ma20 > 0) totalScore += 15;
     if (marketDaily && marketDaily.volume > vol20Ma && vol20Ma > 0) totalScore += 10;
 
-    // 事件面 (10分)
+    // 事件面 (10分)：新聞影響
     totalScore += Math.min(10, eventScore / 10);
 
     return {
@@ -54,17 +63,17 @@ export class FeatureBuilder implements FeatureBuilderContract {
       tradeDate: input.tradeDate,
       closePrice,
       ma20,
-      bias20: ma20 > 0 ? ((closePrice - ma20) / ma20) * 100 : 0,
+      bias20,
       volume: marketDaily?.volume ?? 0,
       vol20Ma,
-      volumeRatio20: vol20Ma > 0 ? (marketDaily?.volume ?? 0) / vol20Ma : 1,
+      volumeRatio20,
       alphaVs0050: 0, 
-      institutionalNet: institutionalFlow?.totalNet ?? 0,
+      institutionalNet,
       foreignNet: institutionalFlow?.foreignNet ?? 0,
       trustNet: institutionalFlow?.trustNet ?? 0,
       marginChange,
       marginRiskScore,
-      revenueYoy: monthRevenue?.revenueYoy ?? 0,
+      revenueYoy,
       revenueAcceleration: monthRevenue ? monthRevenue.revenueYoy > monthRevenue.revenueMom : false,
       grossMarginGrowth,
       epsTtm,
@@ -80,10 +89,11 @@ export class FeatureBuilder implements FeatureBuilderContract {
     const curr = financials[0];
     const prev = financials[1];
     
-    const currGM = curr.grossProfit / curr.revenue;
-    const prevGM = prev.grossProfit / prev.revenue;
-    const currOM = curr.operatingIncome / curr.revenue;
-    const prevOM = prev.operatingIncome / prev.revenue;
+    // 三率成長判定
+    const currGM = curr.revenue > 0 ? curr.grossProfit / curr.revenue : 0;
+    const prevGM = prev.revenue > 0 ? prev.grossProfit / prev.revenue : 0;
+    const currOM = curr.revenue > 0 ? curr.operatingIncome / curr.revenue : 0;
+    const prevOM = prev.revenue > 0 ? prev.operatingIncome / prev.revenue : 0;
 
     return {
       grossMarginGrowth: currGM > prevGM,
@@ -92,11 +102,11 @@ export class FeatureBuilder implements FeatureBuilderContract {
   }
 
   private calculateEventScore(news: any[]): number {
-    if (news.length === 0) return 0;
-    const positiveKeywords = ['成長', '新高', '展望', '獲利', '上修', '利多'];
-    const negativeKeywords = ['衰退', '下修', '風險', '保守', '利空', '虧損'];
+    if (!news || news.length === 0) return 50; 
+    const positiveKeywords = ['成長', '新高', '展望', '獲利', '上修', '利多', '優於預期'];
+    const negativeKeywords = ['衰退', '下修', '風險', '保守', '利空', '虧損', '低於預期'];
     
-    let score = 50; // 基礎中性分
+    let score = 50;
     for (const item of news) {
       const title = item.title || '';
       if (positiveKeywords.some(k => title.includes(k))) score += 10;
@@ -106,30 +116,29 @@ export class FeatureBuilder implements FeatureBuilderContract {
   }
 
   private calculateEpsTtm(financials: any[]): number {
-    // 取得最近 4 季 (financials 已在 provider 完成排序)
     return financials.slice(0, 4).reduce((acc, cur) => acc + (cur.eps || 0), 0);
   }
 
   private extractLatestRoe(financials: any[]): number {
-    // 取得最新一季的 ROE
     return financials[0]?.roe || 0;
   }
 
   private calculateMA(history: any[], window: number): number {
     if (!history || history.length < window) return 0;
     const subset = history.slice(-window);
-    return subset.reduce((acc, cur) => acc + (cur.close ?? 0), 0) / window;
+    const sum = subset.reduce((acc, cur) => acc + (cur.close ?? cur.close_price ?? 0), 0);
+    return sum / window;
   }
 
   private calculateVolMA(history: any[], window: number): number {
     if (!history || history.length < window) return 0;
     const subset = history.slice(-window);
-    return subset.reduce((acc, cur) => acc + (cur.volume ?? 0), 0) / window;
+    const sum = subset.reduce((acc, cur) => acc + (cur.volume ?? cur.TradeVolume ?? 0), 0);
+    return sum / window;
   }
 
   private calculateMarginRisk(margin: any): number {
     if (!margin) return 0;
-    // 簡單邏輯：融資餘額過高或增幅過大視為高風險 (0-100)
     return margin.marginBalance > 10000 ? 80 : 20;
   }
 }

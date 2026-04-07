@@ -19,7 +19,7 @@ export class FinMindProvider implements DataProvider<
   readonly providerName = 'finmind';
   private readonly baseUrl = 'https://api.finmindtrade.com/api/v4/data';
   private readonly token = process.env.FINMIND_API_TOKEN;
-  private readonly normalizationVersion = '1.1.0';
+  private readonly normalizationVersion = '1.3.0';
 
   constructor(private readonly cache?: CacheStore) {}
 
@@ -39,13 +39,18 @@ export class FinMindProvider implements DataProvider<
   async fetch(
     query: DatasetQuery,
     context: FetchContext
-  ): Promise<NormalizedResponse<any>> {
+  ): Promise<NormalizedResponse<MarketDailyRow | MonthRevenueRow | FinancialStatementRow | InstitutionalFlowRow | MarginShortRow | NewsRow | ValuationDailyRow>> {
     const { dataset } = query;
     const cacheKey = CacheKeyFactory.create(dataset, context.accountTier, query.stockId, query.startDate);
 
     if (this.cache && context.useCache !== false) {
       const cached = await this.cache.get<any>(cacheKey);
       if (cached) return { ...cached.response, source: { ...cached.response.source, isCacheHit: true } };
+    }
+
+    // 嚴格檢查 Free Tier 權限 (P0)
+    if (context.accountTier === 'free' && !query.stockId) {
+      throw new Error(`[FinMind] 免費帳戶僅支援單檔查詢，請提供 stockId。資料集: ${dataset}`);
     }
 
     const datasetMap: Record<string, string> = {
@@ -62,12 +67,9 @@ export class FinMindProvider implements DataProvider<
     const finmindDataset = datasetMap[dataset];
     if (!finmindDataset) throw new Error(`[FinMind] 不支援的資料集: ${dataset}`);
 
-    // 強制 Free Tier 邏輯：必須帶 stockId (P0-2)
-    const stockId = (context.accountTier === 'free') ? (query.stockId || '2330') : query.stockId;
-
     const params = new URLSearchParams({
       dataset: finmindDataset,
-      data_id: stockId || '',
+      data_id: query.stockId || '',
       start_date: query.startDate || '',
       end_date: query.endDate || ''
     });
@@ -92,7 +94,7 @@ export class FinMindProvider implements DataProvider<
         isCacheHit: false,
         isStale: false,
         accountTier: context.accountTier,
-        queryMode: stockId ? 'per_stock' : 'bulk'
+        queryMode: query.stockId ? 'per_stock' : 'bulk'
       };
 
       const result = { data, source };
@@ -130,11 +132,9 @@ export class FinMindProvider implements DataProvider<
           }));
 
         case 'month_revenue': {
-          // 排序以方便計算 YoY (假設 raw 包含足夠歷史)
           const sorted = [...raw].sort((a, b) => a.date.localeCompare(b.date));
           return sorted.map((r, index) => {
             const currentRevenue = parseFloat(r.revenue) || 0;
-            // 嘗試尋找 12 個月前的資料計算 YoY
             const lastYear = sorted.find(prev => {
               const d1 = new Date(r.date);
               const d2 = new Date(prev.date);
@@ -152,8 +152,33 @@ export class FinMindProvider implements DataProvider<
           });
         }
 
+        case 'financial_statements': {
+          const groups = new Map<string, any>();
+          for (const r of raw) {
+            const date = r.date;
+            if (!groups.has(date)) {
+              groups.set(date, { 
+                stockId: r.stock_id, 
+                date: date, 
+                year: parseInt(date.split('-')[0], 10),
+                quarter: r.type.includes('Q') ? r.type : 'N/A',
+                revenue: 0, grossProfit: 0, operatingIncome: 0, eps: 0, roe: 0, netIncome: 0
+              });
+            }
+            const g = groups.get(date);
+            const val = parseFloat(r.value) || 0;
+            
+            if (r.type === 'Revenue' || r.type === '營業收入') g.revenue = val;
+            if (r.type === 'GrossProfit' || r.type === '營業毛利') g.grossProfit = val;
+            if (r.type === 'OperatingIncome' || r.type === '營業利益') g.operatingIncome = val;
+            if (r.type === 'NetIncome' || r.type === '本期淨利' || r.type === '本期損益') g.netIncome = val;
+            if (r.type === 'EPS' || r.type === '每股盈餘') g.eps = val;
+            if (r.type === 'ROE' || r.type === '股東權益報酬率') g.roe = val;
+          }
+          return Array.from(groups.values()).sort((a, b) => b.date.localeCompare(a.date));
+        }
+
         case 'institutional_flow': {
-          // 按日期聚合 (三大法人合計)
           const groups = new Map<string, any>();
           for (const r of raw) {
             const date = r.date;
@@ -189,32 +214,15 @@ export class FinMindProvider implements DataProvider<
             dividendYield: parseFloat(r.dividend_yield) || 0
           }));
 
-        case 'financial_statements': {
-          const groups = new Map<string, any>();
-          for (const r of raw) {
-            const date = r.date;
-            if (!groups.has(date)) {
-              groups.set(date, { 
-                stockId: r.stock_id, 
-                date: date, 
-                year: parseInt(date.split('-')[0], 10),
-                quarter: r.type.includes('Q') ? r.type : 'N/A', // 有些資料集會帶 Q1, Q2
-                entries: {} as Record<string, number> 
-              });
-            }
-            const g = groups.get(date);
-            const val = parseFloat(r.value) || 0;
-            g.entries[r.type] = val;
-            
-            // 提取核心欄位方便後續使用
-            if (r.type === 'EPS' || r.type === '每股盈餘') g.eps = val;
-            if (r.type === 'ROE' || r.type === '股東權益報酬率') g.roe = val;
-            if (r.type === 'Revenue' || r.type === '營業收入') g.revenue = val;
-            if (r.type === 'GrossProfit' || r.type === '營業毛利') g.grossProfit = val;
-            if (r.type === 'OperatingIncome' || r.type === '營業利益') g.operatingIncome = val;
-          }
-          return Array.from(groups.values()).sort((a, b) => b.date.localeCompare(a.date));
-        }
+        case 'stock_news':
+          return raw.map(r => ({
+            stockId: r.stock_id || '',
+            publishedAt: r.date || '',
+            title: r.title || '',
+            url: r.link || '',
+            source: r.source || '',
+            content: r.description || ''
+          }));
 
         default:
           return raw;

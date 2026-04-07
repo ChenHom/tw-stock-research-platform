@@ -21,25 +21,32 @@ export class ScreeningService {
 
   /**
    * 執行全市場篩選
+   * 這是產品的第一步：先從幾千檔股票中縮小範圍
    */
   async screen(criteria: ScreeningCriteria): Promise<ScreenedStock[]> {
     console.log('[Screening] 開始執行全市場篩選...');
 
     // 1. 抓取當日全市場快照
-    const marketResp = await this.twseProvider.fetch({ dataset: 'market_daily_latest' }, { accountTier: 'free' });
-    const valuationResp = await this.twseProvider.fetch({ dataset: 'daily_valuation' }, { accountTier: 'free' });
+    const marketResp = await this.twseProvider.fetch(
+      { dataset: 'market_daily_latest' }, 
+      { accountTier: 'free' }
+    );
+    const valuationResp = await this.twseProvider.fetch(
+      { dataset: 'daily_valuation' }, 
+      { accountTier: 'free' }
+    );
 
     const marketData = marketResp.data as MarketDailyRow[];
     const valuationData = valuationResp.data as ValuationDailyRow[];
 
-    // 2. 合併資料並篩選
+    // 2. 合併資料並應用篩選條件
     const results: ScreenedStock[] = [];
 
     for (const v of valuationData) {
       const m = marketData.find(row => row.stockId === v.stockId);
       if (!m) continue;
 
-      // 應用篩選條件
+      // 過濾條件判定
       if (criteria.minVolume && m.volume < criteria.minVolume) continue;
       if (criteria.maxPe && (v.peRatio === 0 || v.peRatio > criteria.maxPe)) continue;
       if (criteria.minPe && v.peRatio < criteria.minPe) continue;
@@ -54,7 +61,7 @@ export class ScreeningService {
       });
     }
 
-    console.log(`[Screening] 篩選完成。從全市場中篩選出 ${results.length} 檔符合條件的股票。`);
+    console.log(`[Screening] 篩選完成。從全市場中篩選出 ${results.length} 檔符合條件的候選股。`);
     return results;
   }
 }
