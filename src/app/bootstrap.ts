@@ -16,6 +16,7 @@ import { ResearchPipelineService } from './services/ResearchPipelineService.js';
 import { createSqlContext } from '../modules/storage/SqlContext.js';
 import { ScreeningService } from './services/ScreeningService.js';
 import { CandidateResearchService } from './services/CandidateResearchService.js';
+import { CandidateResearchReportGenerator } from '../modules/reporting/CandidateResearchReportGenerator.js';
 
 export function bootstrap() {
   const sql = createSqlContext();
@@ -29,7 +30,8 @@ export function bootstrap() {
   const featureBuilder = new FeatureBuilder();
   const thesisTracker = new ThesisTracker();
   const decisionComposer = new DecisionComposer();
-  
+  const candidateResearchReportGenerator = new CandidateResearchReportGenerator();
+
   // 1. 儲存層 (切換為 Postgres)
   const featureSnapshotRepo = new PostgresFeatureSnapshotRepository(sql);
   const finalDecisionRepo = new PostgresFinalDecisionRepository(sql);
@@ -74,6 +76,7 @@ export function bootstrap() {
     decisionComposer,
     screeningService,
     candidateResearchService,
+    candidateResearchReportGenerator,
     ruleRegistry,
     ruleEngine,
     providers: {

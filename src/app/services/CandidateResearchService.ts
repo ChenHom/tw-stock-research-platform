@@ -42,26 +42,37 @@ export class CandidateResearchService {
     const topCandidates = candidates.slice(0, topN);
     console.log(`[Coordinator] 已從 ${candidates.length} 檔中取出前 ${topCandidates.length} 檔進行深度研究。`);
 
-    // 3. 逐檔執行深度研究
+    // 3. 批次執行深度研究 (Batch size = 2)
     const results: CandidateResearchResult[] = [];
+    const batchSize = 2;
 
-    for (const cand of topCandidates) {
-      try {
-        const research = await this.researchPipeline.run({
-          stockId: cand.stockId,
-          tradeDate: input.tradeDate,
-          accountTier,
-          useCache: true
-        }, budget);
+    for (let i = 0; i < topCandidates.length; i += batchSize) {
+      const batch = topCandidates.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map(async (cand) => {
+          try {
+            console.log(`[Batch] 正在研究: ${cand.stockId}`);
+            const research = await this.researchPipeline.run({
+              stockId: cand.stockId,
+              tradeDate: input.tradeDate,
+              accountTier,
+              useCache: true
+            }, budget);
 
-        results.push({
-          stockId: cand.stockId,
-          preliminaryScore: cand.preliminaryScore,
-          research
-        });
-      } catch (error) {
-        console.error(`[Coordinator] 深度研究失敗 (${cand.stockId}):`, error);
-      }
+            return {
+              stockId: cand.stockId,
+              preliminaryScore: cand.preliminaryScore,
+              research
+            } as CandidateResearchResult;
+          } catch (error) {
+            console.error(`[Batch] 深度研究失敗 (${cand.stockId}):`, error);
+            return null;
+          }
+        })
+      );
+      
+      // 過濾掉失敗的項目
+      results.push(...batchResults.filter((r): r is CandidateResearchResult => r !== null));
     }
 
     // 依最終計分 (totalScore) 再次排序

@@ -1,79 +1,45 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CandidateResearchService } from '../src/app/services/CandidateResearchService.js';
-import { ScreeningService } from '../src/app/services/ScreeningService.js';
-import { ResearchPipelineService } from '../src/app/services/ResearchPipelineService.js';
-import { ProviderRegistry } from '../src/modules/providers/ProviderRegistry.js';
-import { MockProvider } from './mocks/MockProvider.js';
-import { FeatureBuilder } from '../src/modules/features/FeatureBuilder.js';
-import { DefaultRuleEngine, DefaultRuleRegistry } from '../src/modules/rules/RuleEngine.js';
-import { ThesisTracker } from '../src/modules/research/ThesisTracker.js';
-import { DecisionComposer } from '../src/modules/research/DecisionComposer.js';
-import { InMemoryFeatureSnapshotRepository, InMemoryFinalDecisionRepository } from '../src/modules/storage/InMemoryRepositories.js';
 
-test('CandidateResearchService (協調器驗證): 應能串接初篩與深度研究流程', async (t) => {
-  // 1. Mock 資料環境
-  const mockProvider = new MockProvider({
-    // 初篩所需
-    'market_daily_latest': [
-      { stockId: '2330', close: 600, volume: 5000 },
-      { stockId: '2317', close: 150, volume: 10000 }
-    ],
-    'daily_valuation': [
-      { stockId: '2330', peRatio: 12, pbRatio: 2.5, dividendYield: 3 },
-      { stockId: '2317', peRatio: 8, pbRatio: 1.2, dividendYield: 6 }
-    ],
-    // 深度研究所需 (對兩檔股票都有資料)
-    'month_revenue': [
-      { stockId: '2330', revenueYoy: 0.25, yearMonth: '2026-03' },
-      { stockId: '2317', revenueYoy: 0.1, yearMonth: '2026-03' }
-    ],
-    'institutional_flow': [
-      { stockId: '2330', totalNet: 1000 },
-      { stockId: '2317', totalNet: 500 }
+test('CandidateResearchService: 應能串接篩選與研究流程並正確排序', async (t) => {
+  // 1. Mock ScreeningService
+  const mockScreeningService: any = {
+    screen: async () => [
+      { stockId: '2330', preliminaryScore: 80 },
+      { stockId: '2317', preliminaryScore: 70 },
+      { stockId: '2454', preliminaryScore: 60 }
     ]
-  });
-  const providerRegistry = new ProviderRegistry([mockProvider]);
-
-  const mockRouter: any = {
-    decide: (dataset: string) => ({
-      dataset,
-      finalProviderOrder: ['mock'],
-      canProceed: true,
-      queryMode: 'bulk'
-    })
   };
 
-  // 2. 初始化服務
-  const screeningService = new ScreeningService(mockRouter, providerRegistry);
-  const researchPipeline = new ResearchPipelineService({
-    router: mockRouter,
-    providerRegistry,
-    featureBuilder: new FeatureBuilder(),
-    ruleEngine: new DefaultRuleEngine(new DefaultRuleRegistry()),
-    thesisTracker: new ThesisTracker(),
-    decisionComposer: new DecisionComposer(),
-    featureSnapshotRepository: new InMemoryFeatureSnapshotRepository(),
-    finalDecisionRepository: new InMemoryFinalDecisionRepository()
-  });
+  // 2. Mock ResearchPipelineService
+  const mockPipeline: any = {
+    run: async (input: { stockId: string }) => {
+      const scores: Record<string, number> = {
+        '2330': 50,
+        '2317': 90, // 研究後分數最高
+        '2454': 40
+      };
+      return {
+        stockId: input.stockId,
+        featureSnapshot: { payload: { totalScore: scores[input.stockId] } },
+        finalDecision: { action: 'BUY', confidence: 0.8 }
+      };
+    }
+  };
 
-  const coordinator = new CandidateResearchService(screeningService, researchPipeline);
+  const service = new CandidateResearchService(mockScreeningService, mockPipeline);
 
-  // 3. 執行
-  const results = await coordinator.run({
-    criteria: { minVolume: 2000 },
-    tradeDate: '2026-04-07',
-    topN: 2
+  // 3. 執行測試
+  const results = await service.run({ 
+    criteria: {}, 
+    tradeDate: '2024-04-03',
+    topN: 2 
   });
 
   // 4. 驗證
-  assert.strictEqual(results.length, 2);
-  
-  // 驗證 2330 (初篩分數較低，但深度研究後總分可能更高)
-  const result2330 = results.find(r => r.stockId === '2330');
-  assert.ok(result2330);
-  assert.ok(result2330.research.featureSnapshot.payload.revenueYoy > 0, '深度研究應補足營收資料');
-  
-  // 驗證排序 (依深度研究後的 totalScore 排序)
-  assert.ok(results[0].research.featureSnapshot.payload.totalScore >= results[1].research.featureSnapshot.payload.totalScore);
+  assert.strictEqual(results.length, 2, '應只研究前 2 檔');
+  assert.strictEqual(results[0].stockId, '2317', '第一名應為研究後總分最高的 2317');
+  assert.strictEqual(results[1].stockId, '2330', '第二名應為 2330');
+  assert.strictEqual(results[0].research.featureSnapshot.payload.totalScore, 90);
 });

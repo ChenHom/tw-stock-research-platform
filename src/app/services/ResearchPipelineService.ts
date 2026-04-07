@@ -135,7 +135,7 @@ export class ResearchPipelineService {
         marketDaily: marketDaily?.data?.[0],
         valuationDaily: valuationDaily?.data?.[0],
         institutionalFlow: institutionalFlow?.data?.[0],
-        monthRevenue: monthRevenue?.data?.[0],
+        monthRevenue: latestRevenue,
         marginShort: marginShort?.data?.[0],
         news: news?.data || []
       },
