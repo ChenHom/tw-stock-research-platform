@@ -3,7 +3,7 @@ import type { StockFeatureSet } from '../../core/types/feature.js';
 
 export class FeatureBuilder implements FeatureBuilderContract {
   build(input: FeatureBuildInput): StockFeatureSet {
-    const { marketDaily, valuationDaily, institutionalFlow, monthRevenue, history, marginShort } = input as any;
+    const { marketDaily, valuationDaily, institutionalFlow, monthRevenue, history, marginShort, financialStatements } = input as any;
     const missingFields: string[] = [];
 
     // 1. 基礎欄位檢查
@@ -12,6 +12,7 @@ export class FeatureBuilder implements FeatureBuilderContract {
     if (!institutionalFlow) missingFields.push('institutional_flow');
     if (!monthRevenue) missingFields.push('month_revenue');
     if (!marginShort) missingFields.push('margin_short');
+    if (!financialStatements || financialStatements.length === 0) missingFields.push('financial_statements');
 
     // 2. 計算 MA 與乖離
     const ma20 = this.calculateMA(history || [], 20);
@@ -22,13 +23,18 @@ export class FeatureBuilder implements FeatureBuilderContract {
     const marginChange = marginShort?.marginChange ?? 0;
     const marginRiskScore = this.calculateMarginRisk(marginShort);
 
-    // 4. 計算分數
+    // 4. 財報特徵 (P0-5)
+    const epsTtm = this.calculateEpsTtm(financialStatements || []);
+    const roe = this.extractLatestRoe(financialStatements || []);
+
+    // 5. 計算分數
     let totalScore = 0;
     if (closePrice > ma20 && ma20 > 0) totalScore += 15;
     if (marketDaily && marketDaily.volume > vol20Ma && vol20Ma > 0) totalScore += 15;
     if (institutionalFlow && institutionalFlow.totalNet > 0) totalScore += 30;
     if (monthRevenue && monthRevenue.revenueYoy > 0.2) totalScore += 30;
     if (valuationDaily && valuationDaily.peRatio < 15) totalScore += 10;
+    if (epsTtm > 20) totalScore += 10; // 獲利加分 (P0-5)
 
     return {
       stockId: input.stockId,
@@ -39,7 +45,7 @@ export class FeatureBuilder implements FeatureBuilderContract {
       volume: marketDaily?.volume ?? 0,
       vol20Ma,
       volumeRatio20: vol20Ma > 0 ? (marketDaily?.volume ?? 0) / vol20Ma : 1,
-      alphaVs0050: 0, // 待開發：全市場對比
+      alphaVs0050: 0, 
       institutionalNet: institutionalFlow?.totalNet ?? 0,
       foreignNet: institutionalFlow?.foreignNet ?? 0,
       trustNet: institutionalFlow?.trustNet ?? 0,
@@ -48,12 +54,31 @@ export class FeatureBuilder implements FeatureBuilderContract {
       revenueYoy: monthRevenue?.revenueYoy ?? 0,
       revenueAcceleration: monthRevenue ? monthRevenue.revenueYoy > monthRevenue.revenueMom : false,
       grossMarginGrowth: false,
-      epsTtm: 0,
-      roe: 0,
+      epsTtm,
+      roe,
       totalScore,
       eventScore: 0,
       missingFields
     };
+  }
+
+  private calculateEpsTtm(financials: any[]): number {
+    // 篩選出科目為 EPS 的行，並按日期排序取最近 4 季
+    const epsRows = financials
+      .filter(f => f.type === 'EPS' || f.type === '每股盈餘')
+      .sort((a, b) => b.date.localeCompare(a.date));
+    
+    // 加總最近 4 筆 (TTM)
+    return epsRows.slice(0, 4).reduce((acc, cur) => acc + (cur.value || 0), 0);
+  }
+
+  private extractLatestRoe(financials: any[]): number {
+    // 取得最新一季的 ROE (若有)
+    const roeRow = financials
+      .filter(f => f.type === 'ROE' || f.type === '股東權益報酬率' || f.type === 'Return_on_Equity_A_Percent')
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
+    
+    return roeRow?.value || 0;
   }
 
   private calculateMA(history: any[], window: number): number {

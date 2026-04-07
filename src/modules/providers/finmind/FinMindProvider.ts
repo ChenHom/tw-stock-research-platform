@@ -111,7 +111,7 @@ export class FinMindProvider implements DataProvider<
   }
 
   private normalize(dataset: string, raw: any[]): any[] {
-    if (!Array.isArray(raw)) return [];
+    if (!Array.isArray(raw) || raw.length === 0) return [];
     
     try {
       switch (dataset) {
@@ -121,58 +121,83 @@ export class FinMindProvider implements DataProvider<
             stockId: r.stock_id || '',
             tradeDate: r.date || '',
             open: parseFloat(r.open) || 0,
-            high: parseFloat(r.high) || 0,
-            low: parseFloat(r.low) || 0,
+            high: parseFloat(r.max) || 0,
+            low: parseFloat(r.min) || 0,
             close: parseFloat(r.close) || 0,
             volume: parseInt(r.Trading_Volume, 10) || 0,
             turnover: parseInt(r.Trading_money, 10) || 0,
             transactionCount: parseInt(r.Trading_turnover, 10) || 0
           }));
-        case 'month_revenue':
-          return raw.map(r => ({
-            stockId: r.stock_id || '',
-            yearMonth: `${r.revenue_year}-${(r.revenue_month || 0).toString().padStart(2, '0')}`,
-            revenue: parseFloat(r.revenue) || 0,
-            revenueYoy: (parseFloat(r.revenue_year_growth) || 0) / 100,
-            revenueMom: (parseFloat(r.revenue_month_growth) || 0) / 100
-          }));
-        case 'institutional_flow':
-          return raw.map(r => ({
-            stockId: r.stock_id || '',
-            tradeDate: r.date || '',
-            foreignNet: (parseFloat(r.Foreign_Investor_Buy) || 0) - (parseFloat(r.Foreign_Investor_Sell) || 0),
-            trustNet: (parseFloat(r.Investment_Trust_Buy) || 0) - (parseFloat(r.Investment_Trust_Sell) || 0),
-            dealerNet: (parseFloat(r.Dealer_Buy) || 0) - (parseFloat(r.Dealer_Sell) || 0),
-            totalNet: parseFloat(r.diff) || 0
-          }));
+
+        case 'month_revenue': {
+          // 排序以方便計算 YoY (假設 raw 包含足夠歷史)
+          const sorted = [...raw].sort((a, b) => a.date.localeCompare(b.date));
+          return sorted.map((r, index) => {
+            const currentRevenue = parseFloat(r.revenue) || 0;
+            // 嘗試尋找 12 個月前的資料計算 YoY
+            const lastYear = sorted.find(prev => {
+              const d1 = new Date(r.date);
+              const d2 = new Date(prev.date);
+              return d1.getFullYear() === d2.getFullYear() + 1 && d1.getMonth() === d2.getMonth();
+            });
+            const prevRevenue = lastYear ? parseFloat(lastYear.revenue) : 0;
+            
+            return {
+              stockId: r.stock_id || '',
+              yearMonth: `${r.revenue_year}-${(r.revenue_month || 0).toString().padStart(2, '0')}`,
+              revenue: currentRevenue,
+              revenueYoy: prevRevenue > 0 ? (currentRevenue - prevRevenue) / prevRevenue : 0,
+              revenueMom: index > 0 ? (currentRevenue - parseFloat(sorted[index-1].revenue)) / parseFloat(sorted[index-1].revenue) : 0
+            };
+          });
+        }
+
+        case 'institutional_flow': {
+          // 按日期聚合 (三大法人合計)
+          const groups = new Map<string, any>();
+          for (const r of raw) {
+            const date = r.date;
+            if (!groups.has(date)) {
+              groups.set(date, { stockId: r.stock_id, tradeDate: date, foreignNet: 0, trustNet: 0, dealerNet: 0, totalNet: 0 });
+            }
+            const g = groups.get(date);
+            const net = (parseFloat(r.buy) || 0) - (parseFloat(r.sell) || 0);
+            if (r.name === 'Foreign_Investor') g.foreignNet += net;
+            if (r.name === 'Investment_Trust') g.trustNet += net;
+            if (r.name === 'Dealer') g.dealerNet += net;
+            g.totalNet += net;
+          }
+          return Array.from(groups.values());
+        }
+
         case 'margin_short':
           return raw.map(r => ({
             stockId: r.stock_id || '',
             tradeDate: r.date || '',
-            marginBalance: parseFloat(r.MarginPurchaseBalance) || 0,
-            shortBalance: parseFloat(r.ShortSaleBalance) || 0,
-            marginChange: 0, // FinMind 融資融券無直接增減欄位，需從 history 計算
-            shortChange: 0
+            marginBalance: parseFloat(r.MarginPurchaseTodayBalance) || 0,
+            shortBalance: parseFloat(r.ShortSaleTodayBalance) || 0,
+            marginChange: parseFloat(r.MarginPurchaseTodayBalance) - parseFloat(r.MarginPurchaseYesterdayBalance),
+            shortChange: parseFloat(r.ShortSaleTodayBalance) - parseFloat(r.ShortSaleYesterdayBalance)
           }));
-        case 'financial_statements':
-          return raw.map(r => ({
-            stockId: r.stock_id || '',
-            year: parseInt(r.date?.split('-')[0], 10) || 0,
-            quarter: r.type || '',
-            revenue: parseFloat(r.value) || 0,
-            grossProfit: 0, 
-            operatingIncome: 0,
-            netIncome: 0,
-            eps: 0
-          }));
+
         case 'daily_valuation':
           return raw.map(r => ({
             stockId: r.stock_id || '',
             tradeDate: r.date || '',
-            peRatio: parseFloat(r.p_e_ratio) || 0,
-            pbRatio: parseFloat(r.p_b_ratio) || 0,
+            peRatio: parseFloat(r.PER) || 0,
+            pbRatio: parseFloat(r.PBR) || 0,
             dividendYield: parseFloat(r.dividend_yield) || 0
           }));
+
+        case 'financial_statements':
+          return raw.map(r => ({
+            stockId: r.stock_id || '',
+            year: parseInt(r.date?.split('-')[0], 10) || 0,
+            date: r.date || '',
+            type: r.type || '',
+            value: parseFloat(r.value) || 0
+          }));
+
         default:
           return raw;
       }

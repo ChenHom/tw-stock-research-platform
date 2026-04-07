@@ -40,21 +40,30 @@ export class ResearchPipelineService {
     const institutionalFlow = await this.fetchSingle('institutional_flow', input, budget);
     const marginShort = await this.fetchSingle('margin_short', input, budget);
     
-    // 營收往前推 60 天確保抓到最新一筆 (P0-3)
-    const monthRevenue = await this.fetchRange('month_revenue', input.stockId, getDaysAgo(60, new Date(input.tradeDate)), input.tradeDate, input, budget);
+    // 財報抓取 (TTM 需 4 季)
+    const financialStatements = await this.fetchRange('financial_statements', input.stockId, getDaysAgo(365, new Date(input.tradeDate)), input.tradeDate, input, budget);
+    
+    // 營收往前推 400 天確保能計算 YoY (P0-3)
+    const monthRevenue = await this.fetchRange('month_revenue', input.stockId, getDaysAgo(400, new Date(input.tradeDate)), input.tradeDate, input, budget);
     
     // 抓取近 30 日歷史資料用於計算均線
     const history = await this.fetchRange('market_daily_history', input.stockId, getDaysAgo(30, new Date(input.tradeDate)), input.tradeDate, input, budget);
 
     // 2. 構建特徵集
+    // 找出最接近目標日期的營收資料
+    const latestRevenue = monthRevenue?.data 
+      ? [...monthRevenue.data].sort((a: any, b: any) => b.yearMonth.localeCompare(a.yearMonth))[0] 
+      : undefined;
+
     const featureInput: FeatureBuildInput = {
       stockId: input.stockId,
       tradeDate: input.tradeDate,
       marketDaily: marketDaily?.data?.[0],
       valuationDaily: valuationDaily?.data?.[0],
       institutionalFlow: institutionalFlow?.data?.[0],
-      monthRevenue: monthRevenue?.data ? [...monthRevenue.data].sort((a: any, b: any) => b.yearMonth.localeCompare(a.yearMonth))[0] : undefined,
+      monthRevenue: latestRevenue,
       marginShort: marginShort?.data?.[0],
+      financialStatements: financialStatements?.data || [],
       history: history?.data || []
     };
 

@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { bootstrap } from '../bootstrap.js';
 import { toTaipeiDateString } from '../../core/utils/date.js';
+import { ReportGenerator } from '../../modules/reporting/ReportGenerator.js';
 
 async function main() {
   const stockId = process.argv[2] || '2330';
@@ -9,6 +10,7 @@ async function main() {
   console.log(`[CLI] 執行研究命令: ${stockId} @ ${tradeDate}`);
 
   const app = bootstrap();
+  const reportGenerator = new ReportGenerator();
 
   // 1. 取得預算快照 (模擬初次調用)
   const budget = app.budgetGuard.evaluate('finmind', 0, 600);
@@ -22,7 +24,7 @@ async function main() {
       useCache: true
     }, budget);
 
-    console.log('\n--- 研究結果 (JSON) ---');
+    console.log('\n--- 1. 研究結果 (JSON) ---');
     console.log(JSON.stringify({
       stockId: result.stockId,
       tradeDate: result.tradeDate,
@@ -32,6 +34,15 @@ async function main() {
       totalScore: result.featureSnapshot.payload.totalScore,
       missingFields: result.featureSnapshot.payload.missingFields
     }, null, 2));
+
+    console.log('\n--- 2. 研究報告 (Markdown) ---');
+    const mdReport = reportGenerator.buildPositionReport(
+      result.featureSnapshot.payload,
+      result.thesisSnapshot || null,
+      null, // Valuation 暫不提供
+      result.finalDecision
+    );
+    console.log(mdReport);
 
   } catch (error) {
     console.error('[CLI] 執行失敗:', error);

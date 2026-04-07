@@ -10,14 +10,18 @@ import { ProviderRegistry } from '../modules/providers/ProviderRegistry.js';
 import { FeatureBuilder } from '../modules/features/FeatureBuilder.js';
 import { ThesisTracker } from '../modules/research/ThesisTracker.js';
 import { DecisionComposer } from '../modules/research/DecisionComposer.js';
-import { MemoryCacheStore } from '../modules/cache/CacheEnvelope.js';
+import { RedisCacheStore } from '../modules/cache/RedisCacheStore.js';
 import { PostgresFeatureSnapshotRepository, PostgresFinalDecisionRepository } from '../modules/storage/PostgresRepositories.js';
 import { ResearchPipelineService } from './services/ResearchPipelineService.js';
 import { createSqlContext } from '../modules/storage/SqlContext.js';
 
 export function bootstrap() {
   const sql = createSqlContext();
-  const cache = new MemoryCacheStore();
+  
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const redisPort = process.env.REDIS_PORT || '6379';
+  const cache = new RedisCacheStore({ url: `redis://${redisHost}:${redisPort}` });
+
   const router = new DefaultDatasetRouter();
   const budgetGuard = new RateBudgetGuard();
   const featureBuilder = new FeatureBuilder();

@@ -6,11 +6,11 @@ export interface DecisionComposerInput {
   asOf: string;
   ruleResults: RuleResult[];
   thesisStatus: ThesisStatus | 'none'; // 支持 none
-  valuationGap?: number;
+  valuationGap?: number; // upside/downside percentage
 }
 
 export class DecisionComposer {
-  private readonly version = '1.3.0';
+  private readonly version = '1.3.1';
 
   // 動作優先級定義 (數值越高代表越優先/越強制)
   private readonly actionPriority: Record<RuleAction, number> = {
@@ -37,20 +37,20 @@ export class DecisionComposer {
     const exitRules = triggered.filter(r => ['EXIT', 'SELL', 'TRIM'].includes(r.action)).map(r => r.ruleId);
     const buyRules = triggered.filter(r => ['BUY', 'ADD'].includes(r.action)).map(r => r.ruleId);
 
-    // 2. 決定基礎動作
+    // 2. 決定基礎動作 (取最高優先級)
     const sortedTriggered = [...triggered].sort((a, b) => 
       (this.actionPriority[b.action] || 0) - (this.actionPriority[a.action] || 0)
     );
     const primaryRule = sortedTriggered[0];
     let finalAction: RuleAction = primaryRule?.action || 'NO_ACTION';
 
-    // 3. 論點覆寫邏輯 (P0-1)
+    // 3. 論點強制覆寫
     if (thesisStatus === 'broken' && this.actionPriority[finalAction] < this.actionPriority['EXIT']) {
       finalAction = 'EXIT';
     }
 
     // 4. 計算綜合置信度
-    let confidence = thesisStatus === 'none' ? 0.4 : 0.6; // 無論點時基礎信心度較低
+    let confidence = thesisStatus === 'none' ? 0.4 : 0.6;
     
     if (thesisStatus === 'weakened') confidence -= 0.15;
     if (thesisStatus === 'broken') confidence += 0.2; 
@@ -66,7 +66,7 @@ export class DecisionComposer {
 
     if (primaryRule?.severity === 'critical') confidence += 0.1;
 
-    // 5. 產出摘要
+    // 5. 產出摘要理由
     const summary = this.generateDetailedSummary(finalAction, thesisStatus, buyRules.length, exitRules.length, primaryRule?.ruleName);
 
     return {
@@ -91,6 +91,7 @@ export class DecisionComposer {
     else if (thesis === 'broken') parts.push('投資論點已破壞，強制建議出場。');
     else if (action === 'EXIT' || action === 'SELL' || action === 'TRIM') parts.push(`主導規則 [${primaryName || '未知'}] 建議減碼或出場。`);
     else if (action === 'BUY' || action === 'ADD') parts.push(`主導規則 [${primaryName || '未知'}] 建議偏多操作。`);
+    else if (action === 'WATCH') parts.push(`主導規則 [${primaryName || '未知'}] 顯示指標轉強，建議加入觀察名單。`);
     else parts.push('目前無明確交易訊號。');
 
     if (buys > 0 && exits > 0) parts.push(`警告：系統偵測到 ${buys} 項偏多與 ${exits} 項偏空規則衝突。`);

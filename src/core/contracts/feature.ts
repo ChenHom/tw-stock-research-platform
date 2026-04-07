@@ -1,5 +1,12 @@
 import type { StockFeatureSet } from '../types/feature.js';
-import type { MarketDailyRow, ValuationDailyRow, InstitutionalFlowRow, MonthRevenueRow, MarginShortRow } from '../types/market.js';
+import type { 
+  MarketDailyRow, 
+  ValuationDailyRow, 
+  InstitutionalFlowRow, 
+  MonthRevenueRow, 
+  MarginShortRow,
+  FinancialStatementRow 
+} from '../types/market.js';
 
 export interface FeatureBuildInput {
   stockId: string;
@@ -8,7 +15,8 @@ export interface FeatureBuildInput {
   valuationDaily?: ValuationDailyRow;
   institutionalFlow?: InstitutionalFlowRow;
   monthRevenue?: MonthRevenueRow;
-  marginShort?: MarginShortRow; // 加入此欄位
+  marginShort?: MarginShortRow;
+  financialStatements?: FinancialStatementRow[]; // 加入此欄位
   // 未來可擴充：歷史序列用於計算 MA20, RSI 等
   history?: MarketDailyRow[];
 }

@@ -99,30 +99,30 @@ export class TwseOpenApiProvider implements DataProvider<MarketDailyRow | Valuat
   }
 
   private normalize(dataset: string, raw: any[], stockId?: string, tradeDate?: string): any[] {
-    const filtered = stockId ? raw.filter(r => (r.Code || r.證券代號) === stockId) : raw;
+    const filtered = stockId ? raw.filter(r => r.Code === stockId) : raw;
     const finalDate = tradeDate || this.toTaipeiDate(new Date());
 
-    if (dataset === 'market_daily') {
+    if (dataset === 'market_daily_latest') {
       return filtered.map(r => ({
-        stockId: r.Code || r.證券代號,
+        stockId: r.Code,
         tradeDate: finalDate,
-        open: parseFloat(r.OpeningPrice || r.開盤價) || 0,
-        high: parseFloat(r.HighestPrice || r.最高價) || 0,
-        low: parseFloat(r.LowestPrice || r.最低價) || 0,
-        close: parseFloat(r.ClosingPrice || r.收盤價) || 0,
-        volume: parseInt(r.TradeVolume || r.成交股數, 10) || 0,
-        turnover: parseInt(r.TradeValue || r.成交金額, 10) || 0,
-        transactionCount: parseInt(r.Transaction || r.成交筆數, 10) || 0
+        open: parseFloat(r.OpeningPrice) || 0,
+        high: parseFloat(r.HighestPrice) || 0,
+        low: parseFloat(r.LowestPrice) || 0,
+        close: parseFloat(r.ClosingPrice) || 0,
+        volume: parseInt(r.TradeVolume, 10) || 0,
+        turnover: parseInt(r.TradeValue, 10) || 0,
+        transactionCount: parseInt(r.Transaction, 10) || 0
       }));
     }
 
     if (dataset === 'daily_valuation') {
       return filtered.map(r => ({
-        stockId: r.Code || r.證券代號,
+        stockId: r.Code,
         tradeDate: finalDate,
-        peRatio: parseFloat(r.PEratio || r.本益比) || 0,
-        pbRatio: parseFloat(r.PBRatio || r.股價淨值比) || 0,
-        dividendYield: parseFloat(r.YieldYield || r.殖利率) || 0
+        peRatio: parseFloat(r.PEratio) || 0,
+        pbRatio: parseFloat(r.PBratio) || 0,
+        dividendYield: parseFloat(r.DividendYield) || 0
       }));
     }
 

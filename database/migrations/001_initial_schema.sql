@@ -222,3 +222,14 @@ CREATE TABLE IF NOT EXISTS positions (
     opened_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- ---------------------------------------------------------
+-- 7. Indexes for Research Performance
+-- ---------------------------------------------------------
+
+CREATE INDEX IF NOT EXISTS idx_market_daily_date ON market_daily(trade_date, stock_id);
+CREATE INDEX IF NOT EXISTS idx_feature_snapshots_stock ON feature_snapshots(stock_id, snapshot_at);
+CREATE INDEX IF NOT EXISTS idx_final_decisions_date ON final_decisions(decision_date, stock_id);
+CREATE INDEX IF NOT EXISTS idx_thesis_versions_thesis ON thesis_versions(thesis_id);
+CREATE INDEX IF NOT EXISTS idx_rule_log_date ON rule_execution_log(trade_date, stock_id);
+
