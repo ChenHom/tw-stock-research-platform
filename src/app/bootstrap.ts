@@ -12,6 +12,7 @@ import { ThesisTracker } from '../modules/research/ThesisTracker.js';
 import { DecisionComposer } from '../modules/research/DecisionComposer.js';
 import { RedisCacheStore } from '../modules/cache/RedisCacheStore.js';
 import { PostgresFeatureSnapshotRepository, PostgresFinalDecisionRepository } from '../modules/storage/PostgresRepositories.js';
+import { InMemoryFeatureSnapshotRepository, InMemoryFinalDecisionRepository } from '../modules/storage/InMemoryRepositories.js';
 import { ResearchPipelineService } from './services/ResearchPipelineService.js';
 import { createSqlContext } from '../modules/storage/SqlContext.js';
 import { ScreeningService } from './services/ScreeningService.js';
@@ -23,8 +24,6 @@ export interface BootstrapOverrides {
 }
 
 export function bootstrap(overrides?: BootstrapOverrides) {
-  const sql = createSqlContext();
-  
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const redisPort = process.env.REDIS_PORT || '6379';
   const cache = new RedisCacheStore({ url: `redis://${redisHost}:${redisPort}` });
@@ -36,9 +35,22 @@ export function bootstrap(overrides?: BootstrapOverrides) {
   const decisionComposer = new DecisionComposer();
   const candidateResearchReportGenerator = new CandidateResearchReportGenerator();
 
-  // 1. 儲存層
-  const featureSnapshotRepo = new PostgresFeatureSnapshotRepository(sql);
-  const finalDecisionRepo = new PostgresFinalDecisionRepository(sql);
+  // 1. 儲存層 (可切換)
+  const storageType = process.env.STORAGE_TYPE || 'in-memory';
+  let featureSnapshotRepo;
+  let finalDecisionRepo;
+  let sql;
+
+  if (storageType === 'postgres') {
+    console.log('[Bootstrap] 使用 PostgreSQL 儲存層');
+    sql = createSqlContext();
+    featureSnapshotRepo = new PostgresFeatureSnapshotRepository(sql);
+    finalDecisionRepo = new PostgresFinalDecisionRepository(sql);
+  } else {
+    console.log('[Bootstrap] 使用 In-Memory 儲存層');
+    featureSnapshotRepo = new InMemoryFeatureSnapshotRepository();
+    finalDecisionRepo = new InMemoryFinalDecisionRepository();
+  }
 
   // 2. 資料來源層 (支援注入)
   const defaultProviders = [

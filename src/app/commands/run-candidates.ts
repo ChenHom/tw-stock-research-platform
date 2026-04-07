@@ -33,6 +33,7 @@ async function main() {
     }
 
     // 3. 產出報告
+    console.log(`\n[CLI] 研究任務完成，結果已儲存至系統 (${process.env.STORAGE_TYPE || 'in-memory'})。`);
     console.log('\n--- 候選池研究報表 ---');
     const markdownReport = reportGenerator.buildMarkdownTable(results);
     console.log(markdownReport);
