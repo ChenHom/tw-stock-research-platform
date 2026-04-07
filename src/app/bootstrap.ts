@@ -15,6 +15,7 @@ import { PostgresFeatureSnapshotRepository, PostgresFinalDecisionRepository } fr
 import { ResearchPipelineService } from './services/ResearchPipelineService.js';
 import { createSqlContext } from '../modules/storage/SqlContext.js';
 import { ScreeningService } from './services/ScreeningService.js';
+import { CandidateResearchService } from './services/CandidateResearchService.js';
 
 export function bootstrap() {
   const sql = createSqlContext();
@@ -62,6 +63,8 @@ export function bootstrap() {
     finalDecisionRepository: finalDecisionRepo
   });
 
+  const candidateResearchService = new CandidateResearchService(screeningService, researchPipeline);
+
   return {
     cache,
     router,
@@ -70,6 +73,7 @@ export function bootstrap() {
     thesisTracker,
     decisionComposer,
     screeningService,
+    candidateResearchService,
     ruleRegistry,
     ruleEngine,
     providers: {

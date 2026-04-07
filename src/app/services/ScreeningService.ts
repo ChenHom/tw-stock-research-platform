@@ -3,14 +3,11 @@ import type { DatasetRouter } from '../../core/contracts/router.js';
 import type { ProviderRegistry } from '../../modules/providers/ProviderRegistry.js';
 
 export interface ScreeningCriteria {
-  // 基礎門檻
+  // 基礎門檻 (僅限 TWSE Bulk 資料能提供的維度)
   minVolume?: number;
   maxPe?: number;
   maxPb?: number;
   minYield?: number;
-  // 進階動能與籌碼 (產品第一層篩選核心)
-  minRevenueYoy?: number;      // 營收成長率
-  minInstitutionalNet?: number; // 法人累計買賣
   minTotalScore?: number;      // 內部預估總分門檻
 }
 
@@ -21,8 +18,6 @@ export interface ScreenedStock {
   pbRatio: number;
   dividendYield: number;
   volume: number;
-  revenueYoy: number;
-  institutionalNet: number;
   preliminaryScore: number;
 }
 
@@ -62,11 +57,7 @@ export class ScreeningService {
       if (criteria.maxPb && (v.pbRatio === 0 || v.pbRatio > criteria.maxPb)) continue;
       if (criteria.minYield && v.dividendYield < criteria.minYield) continue;
 
-      // --- B. 營收與籌碼 (初篩階段暫不具備資料，留待單檔 Research 補強) ---
-      const revenueYoy = 0;
-      const institutionalNet = 0;
-
-      // --- C. 計算初步研究分數 (僅依據現有資料) ---
+      // --- B. 計算初步研究分數 (僅依據現有量價與估值資料) ---
       let preliminaryScore = 0;
       if (v.peRatio < 15 && v.peRatio > 0) preliminaryScore += 40;
       if (v.dividendYield > 5) preliminaryScore += 30;
@@ -81,8 +72,6 @@ export class ScreeningService {
         pbRatio: v.pbRatio,
         dividendYield: v.dividendYield,
         volume: m.volume,
-        revenueYoy,
-        institutionalNet,
         preliminaryScore
       });
     }
