@@ -46,8 +46,9 @@ export class ResearchPipelineService {
     // 營收往前推 400 天確保能計算 YoY
     const monthRevenue = await this.fetchRange('month_revenue', input.stockId, getDaysAgo(400, new Date(input.tradeDate)), input.tradeDate, input, budget);
     
-    // 抓取近 30 日歷史資料
+    // 抓取個股與 0050 基準的歷史資料 (P0-3)
     const history = await this.fetchRange('market_daily_history', input.stockId, getDaysAgo(30, new Date(input.tradeDate)), input.tradeDate, input, budget);
+    const benchmark = await this.fetchRange('market_daily_history', '0050', getDaysAgo(30, new Date(input.tradeDate)), input.tradeDate, input, budget);
 
     // 抓取新聞 (P0-3)
     const news = await this.fetchRange('stock_news', input.stockId, getDaysAgo(7, new Date(input.tradeDate)), input.tradeDate, input, budget);
@@ -67,7 +68,9 @@ export class ResearchPipelineService {
       marginShort: marginShort?.data?.[0],
       financialStatements: financialStatements?.data || [],
       news: news?.data || [],
-      history: history?.data || []
+      history: history?.data || [],
+      benchmarkHistory: benchmark?.data || [], // 真 benchmark 入注
+      monthRevenueHistory: monthRevenue?.data || [] // 完整歷史入注
     };
 
     const featureSet = this.deps.featureBuilder.build(featureInput);
