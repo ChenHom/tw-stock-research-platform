@@ -111,60 +111,74 @@ export class FinMindProvider implements DataProvider<
   }
 
   private normalize(dataset: string, raw: any[]): any[] {
-    switch (dataset) {
-      case 'market_daily_latest':
-      case 'market_daily_history':
-        return raw.map(r => ({
-          stockId: r.stock_id,
-          tradeDate: r.date,
-          open: r.open, high: r.high, low: r.low, close: r.close,
-          volume: r.Trading_Volume, turnover: r.Trading_money, transactionCount: r.Trading_turnover
-        }));
-      case 'month_revenue':
-        return raw.map(r => ({
-          stockId: r.stock_id,
-          yearMonth: `${r.revenue_year}-${r.revenue_month.toString().padStart(2, '0')}`,
-          revenue: r.revenue, revenueYoy: r.revenue_year_growth / 100, revenueMom: r.revenue_month_growth / 100
-        }));
-      case 'institutional_flow':
-        return raw.map(r => ({
-          stockId: r.stock_id,
-          tradeDate: r.date,
-          foreignNet: r.Foreign_Investor_Buy - r.Foreign_Investor_Sell,
-          trustNet: r.Investment_Trust_Buy - r.Investment_Trust_Sell,
-          dealerNet: r.Dealer_Buy - r.Dealer_Sell,
-          totalNet: r.diff
-        }));
-      case 'margin_short':
-        return raw.map(r => ({
-          stockId: r.stock_id,
-          tradeDate: r.date,
-          marginBalance: r.MarginPurchaseBalance,
-          shortBalance: r.ShortSaleBalance,
-          marginChange: r.MarginPurchaseLimit, // 這裡需依實際欄位調整，暫用 Limit 代表規模
-          shortChange: r.ShortSaleLimit
-        }));
-      case 'financial_statements':
-        return raw.map(r => ({
-          stockId: r.stock_id,
-          year: r.date.split('-')[0],
-          quarter: r.type, // 例如 Q1, Q2
-          revenue: r.value, // FinMind 財報是按科目分行，此處簡化處理
-          grossProfit: 0, 
-          operatingIncome: 0,
-          netIncome: 0,
-          eps: 0
-        }));
-      case 'daily_valuation':
-        return raw.map(r => ({
-          stockId: r.stock_id,
-          tradeDate: r.date,
-          peRatio: r.p_e_ratio,
-          pbRatio: r.p_b_ratio,
-          dividendYield: r.dividend_yield
-        }));
-      default:
-        return raw;
+    if (!Array.isArray(raw)) return [];
+    
+    try {
+      switch (dataset) {
+        case 'market_daily_latest':
+        case 'market_daily_history':
+          return raw.map(r => ({
+            stockId: r.stock_id || '',
+            tradeDate: r.date || '',
+            open: parseFloat(r.open) || 0,
+            high: parseFloat(r.high) || 0,
+            low: parseFloat(r.low) || 0,
+            close: parseFloat(r.close) || 0,
+            volume: parseInt(r.Trading_Volume, 10) || 0,
+            turnover: parseInt(r.Trading_money, 10) || 0,
+            transactionCount: parseInt(r.Trading_turnover, 10) || 0
+          }));
+        case 'month_revenue':
+          return raw.map(r => ({
+            stockId: r.stock_id || '',
+            yearMonth: `${r.revenue_year}-${(r.revenue_month || 0).toString().padStart(2, '0')}`,
+            revenue: parseFloat(r.revenue) || 0,
+            revenueYoy: (parseFloat(r.revenue_year_growth) || 0) / 100,
+            revenueMom: (parseFloat(r.revenue_month_growth) || 0) / 100
+          }));
+        case 'institutional_flow':
+          return raw.map(r => ({
+            stockId: r.stock_id || '',
+            tradeDate: r.date || '',
+            foreignNet: (parseFloat(r.Foreign_Investor_Buy) || 0) - (parseFloat(r.Foreign_Investor_Sell) || 0),
+            trustNet: (parseFloat(r.Investment_Trust_Buy) || 0) - (parseFloat(r.Investment_Trust_Sell) || 0),
+            dealerNet: (parseFloat(r.Dealer_Buy) || 0) - (parseFloat(r.Dealer_Sell) || 0),
+            totalNet: parseFloat(r.diff) || 0
+          }));
+        case 'margin_short':
+          return raw.map(r => ({
+            stockId: r.stock_id || '',
+            tradeDate: r.date || '',
+            marginBalance: parseFloat(r.MarginPurchaseBalance) || 0,
+            shortBalance: parseFloat(r.ShortSaleBalance) || 0,
+            marginChange: 0, // FinMind 融資融券無直接增減欄位，需從 history 計算
+            shortChange: 0
+          }));
+        case 'financial_statements':
+          return raw.map(r => ({
+            stockId: r.stock_id || '',
+            year: parseInt(r.date?.split('-')[0], 10) || 0,
+            quarter: r.type || '',
+            revenue: parseFloat(r.value) || 0,
+            grossProfit: 0, 
+            operatingIncome: 0,
+            netIncome: 0,
+            eps: 0
+          }));
+        case 'daily_valuation':
+          return raw.map(r => ({
+            stockId: r.stock_id || '',
+            tradeDate: r.date || '',
+            peRatio: parseFloat(r.p_e_ratio) || 0,
+            pbRatio: parseFloat(r.p_b_ratio) || 0,
+            dividendYield: parseFloat(r.dividend_yield) || 0
+          }));
+        default:
+          return raw;
+      }
+    } catch (error) {
+      console.error(`[FinMind] 正規化失敗 (${dataset}):`, error);
+      return [];
     }
   }
 }

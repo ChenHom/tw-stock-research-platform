@@ -25,6 +25,7 @@ export function bootstrap() {
   const decisionComposer = new DecisionComposer();
   
   // 1. 存儲層 (切換為 Postgres)
+  console.log('[Bootstrap] 初始化存儲層...');
   const featureSnapshotRepo = new PostgresFeatureSnapshotRepository(sql);
   const finalDecisionRepo = new PostgresFinalDecisionRepository(sql);
 

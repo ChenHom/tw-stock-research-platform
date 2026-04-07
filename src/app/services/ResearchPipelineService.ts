@@ -34,14 +34,17 @@ export class ResearchPipelineService {
   ): Promise<RunResearchOutput> {
     console.log(`[Pipeline] 開始研究任務: ${input.stockId} @ ${input.tradeDate}`);
 
-    // 1. 抓取多維度資料 (P0-3: 增加歷史價量)
-    const marketDaily = await this.fetchSingle('market_daily', input, budget);
+    // 1. 抓取多維度資料 (P0-3: 增加歷史與籌碼)
+    const marketDaily = await this.fetchSingle('market_daily_latest', input, budget);
     const valuationDaily = await this.fetchSingle('daily_valuation', input, budget);
     const institutionalFlow = await this.fetchSingle('institutional_flow', input, budget);
-    const monthRevenue = await this.fetchSingle('month_revenue', input, budget);
+    const marginShort = await this.fetchSingle('margin_short', input, budget);
+    
+    // 營收往前推 60 天確保抓到最新一筆 (P0-3)
+    const monthRevenue = await this.fetchRange('month_revenue', input.stockId, getDaysAgo(60, new Date(input.tradeDate)), input.tradeDate, input, budget);
     
     // 抓取近 30 日歷史資料用於計算均線
-    const history = await this.fetchRange('market_daily', input.stockId, getDaysAgo(30, new Date(input.tradeDate)), input.tradeDate, input, budget);
+    const history = await this.fetchRange('market_daily_history', input.stockId, getDaysAgo(30, new Date(input.tradeDate)), input.tradeDate, input, budget);
 
     // 2. 構建特徵集
     const featureInput: FeatureBuildInput = {
@@ -50,8 +53,9 @@ export class ResearchPipelineService {
       marketDaily: marketDaily?.data?.[0],
       valuationDaily: valuationDaily?.data?.[0],
       institutionalFlow: institutionalFlow?.data?.[0],
-      monthRevenue: monthRevenue?.data?.[0],
-      history: history?.data || [] // 餵入歷史資料 (P0-3)
+      monthRevenue: monthRevenue?.data ? [...monthRevenue.data].sort((a: any, b: any) => b.yearMonth.localeCompare(a.yearMonth))[0] : undefined,
+      marginShort: marginShort?.data?.[0],
+      history: history?.data || []
     };
 
     const featureSet = this.deps.featureBuilder.build(featureInput);
@@ -114,7 +118,8 @@ export class ResearchPipelineService {
         marketDaily: marketDaily?.data?.[0],
         valuationDaily: valuationDaily?.data?.[0],
         institutionalFlow: institutionalFlow?.data?.[0],
-        monthRevenue: monthRevenue?.data?.[0]
+        monthRevenue: monthRevenue?.data?.[0],
+        marginShort: marginShort?.data?.[0]
       },
       featureSnapshot,
       thesisSnapshot: thesis,
