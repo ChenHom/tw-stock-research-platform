@@ -18,7 +18,11 @@ import { ScreeningService } from './services/ScreeningService.js';
 import { CandidateResearchService } from './services/CandidateResearchService.js';
 import { CandidateResearchReportGenerator } from '../modules/reporting/CandidateResearchReportGenerator.js';
 
-export function bootstrap() {
+export interface BootstrapOverrides {
+  providers?: any[];
+}
+
+export function bootstrap(overrides?: BootstrapOverrides) {
   const sql = createSqlContext();
   
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -32,16 +36,19 @@ export function bootstrap() {
   const decisionComposer = new DecisionComposer();
   const candidateResearchReportGenerator = new CandidateResearchReportGenerator();
 
-  // 1. 儲存層 (切換為 Postgres)
+  // 1. 儲存層
   const featureSnapshotRepo = new PostgresFeatureSnapshotRepository(sql);
   const finalDecisionRepo = new PostgresFinalDecisionRepository(sql);
 
-  // 2. 資料來源層
-  const twseProvider = new TwseOpenApiProvider(cache);
-  const finmindProvider = new FinMindProvider(cache);
-  const providerRegistry = new ProviderRegistry([twseProvider, finmindProvider]);
+  // 2. 資料來源層 (支援注入)
+  const defaultProviders = [
+    new TwseOpenApiProvider(cache),
+    new FinMindProvider(cache)
+  ];
+  const providers = overrides?.providers || defaultProviders;
+  const providerRegistry = new ProviderRegistry(providers);
 
-  // 3. 篩選與特徵層 (使用 Router 抽象層，支援全市場初篩)
+  // 3. 篩選與特徵層
   const screeningService = new ScreeningService(router, providerRegistry);
 
   // 4. 規則引擎層
@@ -80,8 +87,8 @@ export function bootstrap() {
     ruleRegistry,
     ruleEngine,
     providers: {
-      twse: twseProvider,
-      finmind: finmindProvider
+      twse: providers.find(p => p.providerName === 'twse'),
+      finmind: providers.find(p => p.providerName === 'finmind')
     },
     providerRegistry,
     repositories: {
