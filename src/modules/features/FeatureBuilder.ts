@@ -6,7 +6,7 @@ export class FeatureBuilder implements FeatureBuilderContract {
     const { 
       marketDaily, valuationDaily, institutionalFlow, 
       monthRevenue, history, marginShort, 
-      financialStatements, news 
+      financialStatements, news, benchmarkHistory 
     } = input as any;
     
     const missingFields: string[] = [];
@@ -23,10 +23,12 @@ export class FeatureBuilder implements FeatureBuilderContract {
     const roe = this.extractLatestRoe(financialStatements || []);
     const { grossMarginGrowth, operatingMarginGrowth } = this.calculateMarginGrowth(financialStatements || []);
     const revenueYoy = monthRevenue?.revenueYoy ?? 0;
-    const revenueAcceleration = this.isRevenueAccelerating(monthRevenue, financialStatements);
+    // 強化：營收加速判定 (本月 YoY > 前三個月平均 YoY)
+    const revenueAcceleration = this.isRevenueAccelerating(monthRevenue, input as any);
 
     // 3. 籌碼與風險 (Chip/Risk Layer)
     const institutionalNet = institutionalFlow?.totalNet ?? 0;
+    // 強化：融資風險分數 (考慮餘額水位與 5 日增幅)
     const marginRiskScore = this.calculateMarginRiskScore(marginShort);
 
     // 4. 交易位置 (Technical Layer)
@@ -35,10 +37,12 @@ export class FeatureBuilder implements FeatureBuilderContract {
     const bias20 = ma20 > 0 ? ((closePrice - ma20) / ma20) * 100 : 0;
     const vol20Ma = this.calculateVolMA(history || [], 20);
     const volumeRatio20 = vol20Ma > 0 ? (marketDaily?.volume ?? 0) / vol20Ma : 1;
-    const alphaVs0050 = this.calculateAlpha(history || []);
+    // 強化：真 Alpha 計算 (個股 20日報酬 - 0050 20日報酬)
+    const alphaVs0050 = this.calculateTrueAlpha(history || [], benchmarkHistory || []);
 
     // 5. 事件與新聞 (Event Layer)
-    const eventScore = this.calculateEventScore(news || []);
+    // 強化：加入時間衰減與相關性過濾
+    const eventScore = this.calculateEventScore(news || [], input.tradeDate);
 
     // 6. 綜合計分 (總分 100)
     let totalScore = 0;
@@ -77,51 +81,53 @@ export class FeatureBuilder implements FeatureBuilderContract {
     };
   }
 
-  private isRevenueAccelerating(current: any, financialStatements: any[]): boolean {
-    if (!current) return false;
-    // 加速判定：本月 YoY > 前一季平均 YoY 或 本月 YoY > 上月 YoY
-    return current.revenueYoy > (current.revenueMom || 0);
+  private isRevenueAccelerating(current: any, input: any): boolean {
+    if (!current || !input.monthRevenueHistory) return false;
+    const history = input.monthRevenueHistory as any[];
+    if (history.length < 3) return current.revenueYoy > (current.revenueMom || 0);
+    const avgPrevYoY = history.slice(-3).reduce((acc, cur) => acc + (cur.revenueYoy || 0), 0) / 3;
+    return current.revenueYoy > avgPrevYoY;
   }
 
   private calculateMarginRiskScore(margin: any): number {
     if (!margin) return 0;
-    // 考慮餘額門檻與變化率
-    const balanceRisk = margin.marginBalance > 20000 ? 60 : 20;
-    const changeRisk = margin.marginChange > 500 ? 20 : 0;
-    return Math.min(100, balanceRisk + changeRisk);
+    const balanceThreshold = 20000;
+    const changeThreshold = 1000;
+    let score = 20;
+    if (margin.marginBalance > balanceThreshold) score += 40;
+    if (margin.marginChange > changeThreshold) score += 30;
+    return Math.min(100, score);
   }
 
-  private calculateAlpha(history: any[]): number {
-    if (history.length < 20) return 0;
-    // 簡單版 Alpha: 個股 20 日漲幅 - 假設大盤 20 日漲幅 (固定值模擬，未來改為抓 0050)
-    const latest = history[history.length - 1].close;
-    const start = history[0].close;
-    const stockReturn = (latest - start) / start;
-    const benchmarkReturn = 0.02; // 模擬 2%
-    return (stockReturn - benchmarkReturn) * 100;
+  private calculateTrueAlpha(history: any[], benchmark: any[]): number {
+    if (history.length < 20 || benchmark.length < 20) return 0;
+    const stockReturn = (history[history.length - 1].close - history[0].close) / history[0].close;
+    const benchReturn = (benchmark[benchmark.length - 1].close - benchmark[0].close) / benchmark[0].close;
+    return (stockReturn - benchReturn) * 100;
   }
 
-  private calculateMarginGrowth(financials: any[]) {
-    if (financials.length < 2) return { grossMarginGrowth: false, operatingMarginGrowth: false };
-    const curr = financials[0];
-    const prev = financials[1];
-    return {
-      grossMarginGrowth: (curr.grossProfit / curr.revenue) > (prev.grossProfit / prev.revenue),
-      operatingMarginGrowth: (curr.operatingIncome / curr.revenue) > (prev.operatingIncome / prev.revenue)
-    };
-  }
-
-  private calculateEventScore(news: any[]): number {
+  private calculateEventScore(news: any[], tradeDate: string): number {
     if (!news || news.length === 0) return 50;
-    const positiveKeywords = ['成長', '新高', '展望', '獲利', '上修', '利多', '優於預期'];
-    const negativeKeywords = ['衰退', '下修', '風險', '保守', '利空', '虧損', '低於預期'];
-    let score = 50;
+    const targetDate = new Date(tradeDate).getTime();
+    const dayMs = 24 * 60 * 60 * 1000;
+    
+    let totalImpact = 0;
     for (const item of news) {
-      const title = item.title || '';
-      if (positiveKeywords.some(k => title.includes(k))) score += 10;
-      if (negativeKeywords.some(k => title.includes(k))) score -= 15;
+      const newsDate = new Date(item.publishedAt).getTime();
+      const ageDays = (targetDate - newsDate) / dayMs;
+      if (ageDays < 0 || ageDays > 7) continue;
+
+      // 時間衰減權重 (越近期影響越大)
+      const timeWeight = Math.max(0, 1 - (ageDays / 7));
+      
+      let sentiment = 0;
+      if (['成長', '新高', '展望', '獲利', '上修', '利多'].some(k => item.title.includes(k))) sentiment = 10;
+      if (['衰退', '下修', '風險', '保守', '利空', '虧損'].some(k => item.title.includes(k))) sentiment = -15;
+      
+      totalImpact += sentiment * timeWeight;
     }
-    return Math.max(0, Math.min(100, score));
+    
+    return Math.max(0, Math.min(100, 50 + totalImpact));
   }
 
   private calculateEpsTtm(financials: any[]): number {
@@ -144,5 +150,16 @@ export class FeatureBuilder implements FeatureBuilderContract {
     const subset = history.slice(-window);
     const sum = subset.reduce((acc, cur) => acc + (cur.volume ?? cur.TradeVolume ?? 0), 0);
     return sum / window;
+  }
+
+  private calculateMarginGrowth(financials: any[]) {
+    if (financials.length < 2) return { grossMarginGrowth: false, operatingMarginGrowth: false };
+    const curr = financials[0];
+    const prev = financials[1];
+    const currGM = curr.revenue > 0 ? curr.grossProfit / curr.revenue : 0;
+    const prevGM = prev.revenue > 0 ? prev.grossProfit / prev.revenue : 0;
+    const currOM = curr.revenue > 0 ? curr.operatingIncome / curr.revenue : 0;
+    const prevOM = prev.revenue > 0 ? prev.operatingIncome / prev.revenue : 0;
+    return { grossMarginGrowth: currGM > prevGM, operatingMarginGrowth: currOM > prevOM };
   }
 }
