@@ -15,18 +15,22 @@ import { MemoryCacheStore } from '../modules/cache/CacheEnvelope.js';
 import { 
   PostgresFeatureSnapshotRepository, 
   PostgresFinalDecisionRepository, 
-  PostgresResearchRunRepository 
+  PostgresResearchRunRepository,
+  PostgresResearchOutcomeRepository
 } from '../modules/storage/PostgresRepositories.js';
 import { 
   InMemoryFeatureSnapshotRepository, 
   InMemoryFinalDecisionRepository, 
-  InMemoryResearchRunRepository 
+  InMemoryResearchRunRepository,
+  InMemoryResearchOutcomeRepository
 } from '../modules/storage/InMemoryRepositories.js';
 import { ResearchPipelineService } from './services/ResearchPipelineService.js';
 import { createSqlContext } from '../modules/storage/SqlContext.js';
 import { ScreeningService } from './services/ScreeningService.js';
 import { CandidateResearchService } from './services/CandidateResearchService.js';
 import { ResearchRunQueryService } from './services/ResearchRunQueryService.js';
+import { ResearchOutcomeService } from './services/ResearchOutcomeService.js';
+import { ResearchPerformanceService } from './services/ResearchPerformanceService.js';
 import { CandidateResearchReportGenerator } from '../modules/reporting/CandidateResearchReportGenerator.js';
 
 export interface BootstrapOverrides {
@@ -59,6 +63,7 @@ export function bootstrap(overrides?: BootstrapOverrides) {
   let featureSnapshotRepo;
   let finalDecisionRepo;
   let researchRunRepo;
+  let researchOutcomeRepo;
   let sql;
 
   if (storageType === 'postgres') {
@@ -67,11 +72,13 @@ export function bootstrap(overrides?: BootstrapOverrides) {
     featureSnapshotRepo = new PostgresFeatureSnapshotRepository(sql);
     finalDecisionRepo = new PostgresFinalDecisionRepository(sql);
     researchRunRepo = new PostgresResearchRunRepository(sql);
+    researchOutcomeRepo = new PostgresResearchOutcomeRepository(sql);
   } else {
     console.log('[Bootstrap] 使用 In-Memory 儲存層');
     featureSnapshotRepo = new InMemoryFeatureSnapshotRepository();
     finalDecisionRepo = new InMemoryFinalDecisionRepository();
     researchRunRepo = new InMemoryResearchRunRepository();
+    researchOutcomeRepo = new InMemoryResearchOutcomeRepository();
   }
 
   // 2. 資料來源層 (支援注入)
@@ -113,6 +120,8 @@ export function bootstrap(overrides?: BootstrapOverrides) {
   );
 
   const researchRunQueryService = new ResearchRunQueryService(researchRunRepo);
+  const researchOutcomeService = new ResearchOutcomeService(researchOutcomeRepo, researchRunRepo, providerRegistry);
+  const researchPerformanceService = new ResearchPerformanceService(researchOutcomeRepo);
 
   return {
     cache,
@@ -124,6 +133,8 @@ export function bootstrap(overrides?: BootstrapOverrides) {
     screeningService,
     candidateResearchService,
     researchRunQueryService,
+    researchOutcomeService,
+    researchPerformanceService,
     candidateResearchReportGenerator,
     ruleRegistry,
     ruleEngine,
@@ -135,7 +146,8 @@ export function bootstrap(overrides?: BootstrapOverrides) {
     repositories: {
       featureSnapshots: featureSnapshotRepo,
       finalDecisions: finalDecisionRepo,
-      researchRuns: researchRunRepo
+      researchRuns: researchRunRepo,
+      researchOutcomes: researchOutcomeRepo
     },
     researchPipeline
   };

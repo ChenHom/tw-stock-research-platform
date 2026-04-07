@@ -3,8 +3,10 @@ import type {
   FeatureSnapshotRepository as FeatureSnapshotRepositoryContract, 
   FinalDecisionRepository as FinalDecisionRepositoryContract,
   ResearchRunRepository as ResearchRunRepositoryContract,
+  ResearchOutcomeRepository as ResearchOutcomeRepositoryContract,
   ResearchRun,
-  CandidateResearchResultRecord
+  CandidateResearchResultRecord,
+  ResearchOutcome
 } from '../../core/contracts/storage.js';
 import type { FeatureSnapshot } from '../../core/types/feature.js';
 import type { FinalDecision } from '../../core/types/rule.js';
@@ -133,6 +135,35 @@ export class PostgresResearchRunRepository implements ResearchRunRepositoryContr
       FROM candidate_research_results
       WHERE run_id = ${runId}
       ORDER BY research_total_score DESC
+    `;
+    return rows as any[];
+  }
+}
+
+export class PostgresResearchOutcomeRepository implements ResearchOutcomeRepositoryContract {
+  constructor(private readonly sql: postgres.Sql) {}
+
+  async save(outcome: ResearchOutcome): Promise<void> {
+    await this.sql`
+      INSERT INTO research_outcomes (
+        run_id, stock_id, action, entry_reference_price, 
+        t_plus_1_return, t_plus_5_return, t_plus_20_return, 
+        max_drawdown, is_correct_direction
+      ) VALUES (
+        ${outcome.runId}, ${outcome.stockId}, ${outcome.action}, ${outcome.entryReferencePrice},
+        ${outcome.tPlus1Return ?? null}, ${outcome.tPlus5Return ?? null}, ${outcome.tPlus20Return ?? null},
+        ${outcome.maxDrawdown ?? null}, ${outcome.isCorrectDirection ?? null}
+      )
+    `;
+  }
+
+  async findByRunId(runId: string): Promise<ResearchOutcome[]> {
+    const rows = await this.sql`
+      SELECT run_id as "runId", stock_id as "stockId", action, entry_reference_price as "entryReferencePrice",
+             t_plus_1_return as "tPlus1Return", t_plus_5_return as "tPlus5Return", t_plus_20_return as "tPlus20Return",
+             max_drawdown as "maxDrawdown", is_correct_direction as "isCorrectDirection"
+      FROM research_outcomes
+      WHERE run_id = ${runId}
     `;
     return rows as any[];
   }

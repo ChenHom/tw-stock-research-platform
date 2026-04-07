@@ -2,8 +2,10 @@ import type {
   FeatureSnapshotRepository as FeatureSnapshotRepositoryContract, 
   FinalDecisionRepository as FinalDecisionRepositoryContract,
   ResearchRunRepository as ResearchRunRepositoryContract,
+  ResearchOutcomeRepository as ResearchOutcomeRepositoryContract,
   ResearchRun,
-  CandidateResearchResultRecord
+  CandidateResearchResultRecord,
+  ResearchOutcome
 } from '../../core/contracts/storage.js';
 import type { FeatureSnapshot } from '../../core/types/feature.js';
 import type { FinalDecision } from '../../core/types/rule.js';
@@ -63,5 +65,18 @@ export class InMemoryResearchRunRepository implements ResearchRunRepositoryContr
 
   async getRunResults(runId: string): Promise<CandidateResearchResultRecord[]> {
     return this.results.filter(r => r.runId === runId).sort((a, b) => b.researchTotalScore - a.researchTotalScore);
+  }
+}
+
+export class InMemoryResearchOutcomeRepository implements ResearchOutcomeRepositoryContract {
+  private outcomes: ResearchOutcome[] = [];
+
+  async save(outcome: ResearchOutcome): Promise<void> {
+    this.outcomes.push(outcome);
+    console.log(`[Storage] 儲存成效數據: ${outcome.stockId} (Run: ${outcome.runId})`);
+  }
+
+  async findByRunId(runId: string): Promise<ResearchOutcome[]> {
+    return this.outcomes.filter(o => o.runId === runId);
   }
 }

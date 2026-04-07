@@ -20,6 +20,23 @@ export interface CandidateResearchResultRecord {
   summary: string;
 }
 
+export interface ResearchOutcome {
+  runId: string;
+  stockId: string;
+  action: string;
+  entryReferencePrice: number;
+  tPlus1Return?: number;
+  tPlus5Return?: number;
+  tPlus20Return?: number;
+  maxDrawdown?: number;
+  isCorrectDirection?: boolean;
+}
+
+export interface ResearchOutcomeRepository {
+  save(outcome: ResearchOutcome): Promise<void>;
+  findByRunId(runId: string): Promise<ResearchOutcome[]>;
+}
+
 export interface FeatureSnapshotRepository {
   save(snapshot: FeatureSnapshot): Promise<void>;
 }

@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { bootstrap } from '../bootstrap.js';
+import { toTaipeiDateString } from '../../core/utils/date.js';
 
 async function main() {
   const mode = process.argv[2] || 'latest';
@@ -18,24 +19,12 @@ async function main() {
           console.log('找不到任何研究紀錄。');
           return;
         }
-        // 複用現有的表格產生器
-        // 為了對齊 CandidateResearchResult 介面，我們需要簡單轉換
-        const results = summary.results.map(r => ({
-          stockId: r.stockId,
-          preliminaryScore: r.preliminaryScore,
-          research: {
-            stockId: r.stockId,
-            tradeDate: summary.run.tradeDate,
-            featureSnapshot: { payload: { totalScore: r.researchTotalScore } },
-            finalDecision: { action: r.finalAction, confidence: r.confidence, summary: r.summary }
-          }
-        }));
-        console.log(reportGenerator.buildMarkdownTable(results as any));
+        console.log(reportGenerator.buildRunResultTable(summary.results, summary.run.tradeDate));
         break;
       }
 
       case 'date': {
-        const date = param || new Date().toISOString().split('T')[0];
+        const date = param || toTaipeiDateString();
         console.log(`[CLI] 正在查詢 ${date} 的任務列表...`);
         const runs = await queryService.findRunsByDate(date);
         console.log(reportGenerator.buildRunHistoryTable(runs));
@@ -49,17 +38,12 @@ async function main() {
         }
         console.log(`[CLI] 正在獲取任務細節: ${param}`);
         const results = await queryService.getRunDetail(param);
-        // 轉換為報表格式
-        const tableResults = results.map(r => ({
-          stockId: r.stockId,
-          preliminaryScore: r.preliminaryScore,
-          research: {
-            stockId: r.stockId,
-            featureSnapshot: { payload: { totalScore: r.researchTotalScore } },
-            finalDecision: { action: r.finalAction, confidence: r.confidence, summary: r.summary }
-          }
-        }));
-        console.log(reportGenerator.buildMarkdownTable(tableResults as any));
+        if (results.length === 0) {
+          console.log('找不到該任務或該任務無結果。');
+          return;
+        }
+        // 從第一筆結果抓日期 (簡化處理)
+        console.log(reportGenerator.buildRunResultTable(results, '任務內容'));
         break;
       }
 

@@ -14,6 +14,7 @@
     "research": "NODE_OPTIONS='--loader ts-node/esm' node src/app/commands/run-research.ts",
     "candidates": "NODE_OPTIONS='--loader ts-node/esm' node src/app/commands/run-candidates.ts",
     "run-history": "NODE_OPTIONS='--loader ts-node/esm' node src/app/commands/run-history.ts",
+    "performance": "NODE_OPTIONS='--loader ts-node/esm' node src/app/commands/run-performance.ts",
     "dev:tree": "node ./src/app/print-tree.js",
     "prepare": "husky"
   },

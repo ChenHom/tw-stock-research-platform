@@ -49,6 +49,28 @@ export class CandidateResearchReportGenerator {
   }
 
   /**
+   * 產出特定任務的詳細結果表格 (供讀回歷史使用)
+   */
+  buildRunResultTable(results: any[], tradeDate: string): string {
+    const header = [
+      '| 排名 | 代號 | 初篩分 | 研究總分 | 決策動作 | 置信度 | 摘要理由 |',
+      '| :--- | :--- | :---: | :---: | :---: | :---: | :--- |'
+    ];
+
+    const rows = results.map((r, i) => {
+      const confidence = (Number(r.confidence) * 100).toFixed(0) + '%';
+      return `| ${i + 1} | ${r.stockId} | ${r.preliminaryScore} | ${r.researchTotalScore} | **${r.finalAction}** | ${confidence} | ${r.summary} |`;
+    });
+
+    return [
+      `# 研究任務詳細結果 (${tradeDate})`,
+      '',
+      ...header,
+      ...rows
+    ].join('\n');
+  }
+
+  /**
    * 產出研究任務歷史列表表格
    */
   buildRunHistoryTable(runs: any[]): string {
