@@ -13,6 +13,7 @@
     "db:clear": "NODE_OPTIONS='--loader ts-node/esm' node src/app/migrate.ts clear",
     "research": "NODE_OPTIONS='--loader ts-node/esm' node src/app/commands/run-research.ts",
     "candidates": "NODE_OPTIONS='--loader ts-node/esm' node src/app/commands/run-candidates.ts",
+    "run-history": "NODE_OPTIONS='--loader ts-node/esm' node src/app/commands/run-history.ts",
     "dev:tree": "node ./src/app/print-tree.js",
     "prepare": "husky"
   },

@@ -47,4 +47,25 @@ export class CandidateResearchReportGenerator {
       summary: r.research.finalDecision.summary
     }));
   }
+
+  /**
+   * 產出研究任務歷史列表表格
+   */
+  buildRunHistoryTable(runs: any[]): string {
+    const header = [
+      '| 任務日期 | 執行狀態 | 帳戶等級 | TopN | 任務 ID |',
+      '| :--- | :--- | :---: | :---: | :--- |'
+    ];
+
+    const rows = runs.map(r => {
+      return `| ${r.tradeDate} | ${r.status} | ${r.accountTier} | ${r.topN} | ${r.runId} |`;
+    });
+
+    return [
+      '# 研究任務歷史清單',
+      '',
+      ...header,
+      ...rows
+    ].join('\n');
+  }
 }
