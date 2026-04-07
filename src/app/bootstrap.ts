@@ -12,8 +12,16 @@ import { ThesisTracker } from '../modules/research/ThesisTracker.js';
 import { DecisionComposer } from '../modules/research/DecisionComposer.js';
 import { RedisCacheStore } from '../modules/cache/RedisCacheStore.js';
 import { MemoryCacheStore } from '../modules/cache/CacheEnvelope.js';
-import { PostgresFeatureSnapshotRepository, PostgresFinalDecisionRepository } from '../modules/storage/PostgresRepositories.js';
-import { InMemoryFeatureSnapshotRepository, InMemoryFinalDecisionRepository } from '../modules/storage/InMemoryRepositories.js';
+import { 
+  PostgresFeatureSnapshotRepository, 
+  PostgresFinalDecisionRepository, 
+  PostgresResearchRunRepository 
+} from '../modules/storage/PostgresRepositories.js';
+import { 
+  InMemoryFeatureSnapshotRepository, 
+  InMemoryFinalDecisionRepository, 
+  InMemoryResearchRunRepository 
+} from '../modules/storage/InMemoryRepositories.js';
 import { ResearchPipelineService } from './services/ResearchPipelineService.js';
 import { createSqlContext } from '../modules/storage/SqlContext.js';
 import { ScreeningService } from './services/ScreeningService.js';
@@ -49,6 +57,7 @@ export function bootstrap(overrides?: BootstrapOverrides) {
   const storageType = process.env.STORAGE_TYPE || 'in-memory';
   let featureSnapshotRepo;
   let finalDecisionRepo;
+  let researchRunRepo;
   let sql;
 
   if (storageType === 'postgres') {
@@ -56,10 +65,12 @@ export function bootstrap(overrides?: BootstrapOverrides) {
     sql = createSqlContext();
     featureSnapshotRepo = new PostgresFeatureSnapshotRepository(sql);
     finalDecisionRepo = new PostgresFinalDecisionRepository(sql);
+    researchRunRepo = new PostgresResearchRunRepository(sql);
   } else {
     console.log('[Bootstrap] 使用 In-Memory 儲存層');
     featureSnapshotRepo = new InMemoryFeatureSnapshotRepository();
     finalDecisionRepo = new InMemoryFinalDecisionRepository();
+    researchRunRepo = new InMemoryResearchRunRepository();
   }
 
   // 2. 資料來源層 (支援注入)
@@ -94,7 +105,11 @@ export function bootstrap(overrides?: BootstrapOverrides) {
     finalDecisionRepository: finalDecisionRepo
   });
 
-  const candidateResearchService = new CandidateResearchService(screeningService, researchPipeline);
+  const candidateResearchService = new CandidateResearchService(
+    screeningService, 
+    researchPipeline,
+    researchRunRepo
+  );
 
   return {
     cache,
@@ -115,7 +130,8 @@ export function bootstrap(overrides?: BootstrapOverrides) {
     providerRegistry,
     repositories: {
       featureSnapshots: featureSnapshotRepo,
-      finalDecisions: finalDecisionRepo
+      finalDecisions: finalDecisionRepo,
+      researchRuns: researchRunRepo
     },
     researchPipeline
   };

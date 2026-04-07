@@ -1,5 +1,11 @@
 import postgres from 'postgres';
-import type { FeatureSnapshotRepository as FeatureSnapshotRepositoryContract, FinalDecisionRepository as FinalDecisionRepositoryContract } from '../../core/contracts/storage.js';
+import type { 
+  FeatureSnapshotRepository as FeatureSnapshotRepositoryContract, 
+  FinalDecisionRepository as FinalDecisionRepositoryContract,
+  ResearchRunRepository as ResearchRunRepositoryContract,
+  ResearchRun,
+  CandidateResearchResultRecord
+} from '../../core/contracts/storage.js';
 import type { FeatureSnapshot } from '../../core/types/feature.js';
 import type { FinalDecision } from '../../core/types/rule.js';
 
@@ -56,5 +62,42 @@ export class PostgresFinalDecisionRepository implements FinalDecisionRepositoryC
       LIMIT 1
     `;
     return rows.length > 0 ? (rows[0] as any) : null;
+  }
+}
+
+export class PostgresResearchRunRepository implements ResearchRunRepositoryContract {
+  constructor(private readonly sql: postgres.Sql) {}
+
+  async save(run: ResearchRun): Promise<void> {
+    await this.sql`
+      INSERT INTO research_runs (
+        run_id, trade_date, criteria_json, top_n, account_tier, status
+      ) VALUES (
+        ${run.runId}, ${run.tradeDate}, ${this.sql.json(run.criteria)}, ${run.topN}, ${run.accountTier}, ${run.status}
+      )
+    `;
+  }
+
+  async updateStatus(runId: string, status: ResearchRun['status']): Promise<void> {
+    await this.sql`
+      UPDATE research_runs SET status = ${status} WHERE run_id = ${runId}
+    `;
+  }
+
+  async saveResults(results: CandidateResearchResultRecord[]): Promise<void> {
+    if (results.length === 0) return;
+    
+    // 批次寫入
+    await this.sql`
+      INSERT INTO candidate_research_results ${this.sql(results.map(r => ({
+        run_id: r.runId,
+        stock_id: r.stockId,
+        preliminary_score: r.preliminaryScore,
+        total_score: r.researchTotalScore,
+        final_action: r.finalAction,
+        confidence: r.confidence,
+        summary: r.summary
+      })))}
+    `;
   }
 }
