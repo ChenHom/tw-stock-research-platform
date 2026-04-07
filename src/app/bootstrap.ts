@@ -29,7 +29,7 @@ export function bootstrap() {
   const thesisTracker = new ThesisTracker();
   const decisionComposer = new DecisionComposer();
   
-  // 1. 存儲層 (切換為 Postgres)
+  // 1. 儲存層 (切換為 Postgres)
   const featureSnapshotRepo = new PostgresFeatureSnapshotRepository(sql);
   const finalDecisionRepo = new PostgresFinalDecisionRepository(sql);
 
