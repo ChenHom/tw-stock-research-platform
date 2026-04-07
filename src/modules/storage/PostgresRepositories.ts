@@ -79,21 +79,23 @@ export class PostgresResearchRunRepository implements ResearchRunRepositoryContr
   }
 
   async updateStatus(runId: string, status: ResearchRun['status']): Promise<void> {
+    const completedAt = status === 'completed' || status === 'failed' ? new Date().toISOString() : null;
     await this.sql`
-      UPDATE research_runs SET status = ${status} WHERE run_id = ${runId}
+      UPDATE research_runs 
+      SET status = ${status}, completed_at = ${completedAt} 
+      WHERE run_id = ${runId}
     `;
   }
 
   async saveResults(results: CandidateResearchResultRecord[]): Promise<void> {
     if (results.length === 0) return;
     
-    // 批次寫入
     await this.sql`
       INSERT INTO candidate_research_results ${this.sql(results.map(r => ({
         run_id: r.runId,
         stock_id: r.stockId,
         preliminary_score: r.preliminaryScore,
-        total_score: r.researchTotalScore,
+        research_total_score: r.researchTotalScore, // 修正對應新 Schema
         final_action: r.finalAction,
         confidence: r.confidence,
         summary: r.summary
