@@ -16,14 +16,14 @@ export interface DatasetCapability {
   sponsorMode: QueryMode;
   costWeight: number;
   costModel: CostModel;
-  cacheTtlSeconds: number; // 新增：根據更新頻率設定快取 TTL
+  cacheTtlSeconds: number;
   mvpRequired: boolean;
   notes?: string;
 }
 
 export const DATASET_CAPABILITIES: DatasetCapability[] = [
   {
-    dataset: 'market_daily',
+    dataset: 'market_daily_latest',
     sourceOfTruth: 'twse',
     providerOrder: ['twse', 'finmind'],
     freeMode: 'bulk',
@@ -31,8 +31,22 @@ export const DATASET_CAPABILITIES: DatasetCapability[] = [
     sponsorMode: 'bulk',
     costWeight: 1,
     costModel: { freeTierPerRequest: 0, bulkMultiplier: 1 },
-    cacheTtlSeconds: 14400, // 4小時 (盤後更新一次即可)
-    mvpRequired: true
+    cacheTtlSeconds: 14400,
+    mvpRequired: true,
+    notes: '當日全市場快照，優先走 TWSE'
+  },
+  {
+    dataset: 'market_daily_history',
+    sourceOfTruth: 'finmind',
+    providerOrder: ['finmind'],
+    freeMode: 'per_stock',
+    backerMode: 'per_stock',
+    sponsorMode: 'bulk',
+    costWeight: 2,
+    costModel: { freeTierPerRequest: 2, bulkMultiplier: 50 },
+    cacheTtlSeconds: 86400,
+    mvpRequired: true,
+    notes: '單檔歷史序列，優先走 FinMind'
   },
   {
     dataset: 'daily_valuation',
@@ -49,13 +63,49 @@ export const DATASET_CAPABILITIES: DatasetCapability[] = [
   {
     dataset: 'month_revenue',
     sourceOfTruth: 'finmind',
-    providerOrder: ['finmind', 'twse'],
+    providerOrder: ['finmind'],
     freeMode: 'per_stock',
     backerMode: 'bulk',
     sponsorMode: 'bulk',
     costWeight: 3,
     costModel: { freeTierPerRequest: 2, bulkMultiplier: 50 },
-    cacheTtlSeconds: 86400, // 24小時 (每月更新一次)
+    cacheTtlSeconds: 86400,
+    mvpRequired: true
+  },
+  {
+    dataset: 'institutional_flow',
+    sourceOfTruth: 'finmind',
+    providerOrder: ['finmind'],
+    freeMode: 'per_stock',
+    backerMode: 'bulk',
+    sponsorMode: 'bulk',
+    costWeight: 2,
+    costModel: { freeTierPerRequest: 1, bulkMultiplier: 30 },
+    cacheTtlSeconds: 14400,
+    mvpRequired: true
+  },
+  {
+    dataset: 'margin_short',
+    sourceOfTruth: 'finmind',
+    providerOrder: ['finmind'],
+    freeMode: 'per_stock',
+    backerMode: 'bulk',
+    sponsorMode: 'bulk',
+    costWeight: 2,
+    costModel: { freeTierPerRequest: 1, bulkMultiplier: 30 },
+    cacheTtlSeconds: 14400,
+    mvpRequired: true
+  },
+  {
+    dataset: 'financial_statements',
+    sourceOfTruth: 'finmind',
+    providerOrder: ['finmind'],
+    freeMode: 'per_stock',
+    backerMode: 'bulk',
+    sponsorMode: 'bulk',
+    costWeight: 4,
+    costModel: { freeTierPerRequest: 5, bulkMultiplier: 100 },
+    cacheTtlSeconds: 86400,
     mvpRequired: true
   },
   {
@@ -67,19 +117,7 @@ export const DATASET_CAPABILITIES: DatasetCapability[] = [
     sponsorMode: 'keyword',
     costWeight: 1,
     costModel: { freeTierPerRequest: 1 },
-    cacheTtlSeconds: 900, // 15分鐘 (新聞需較即時)
-    mvpRequired: true
-  },
-  {
-    dataset: 'institutional_flow',
-    sourceOfTruth: 'finmind',
-    providerOrder: ['finmind', 'twse'],
-    freeMode: 'per_stock',
-    backerMode: 'bulk',
-    sponsorMode: 'bulk',
-    costWeight: 2,
-    costModel: { freeTierPerRequest: 1, bulkMultiplier: 30 },
-    cacheTtlSeconds: 14400,
+    cacheTtlSeconds: 900,
     mvpRequired: true
   }
 ];

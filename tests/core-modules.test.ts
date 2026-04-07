@@ -26,9 +26,9 @@ test('DatasetRouter: 應能根據 Budget 狀態執行降級與攔截', (t) => {
   
   // 攔截狀態 (98% 使用率)
   const haltBudget = guard.evaluate('finmind', 980, 1000);
-  const haltDecision = router.decide('month_revenue', 'free', haltBudget);
+  const haltDecision = router.decide('market_daily_latest', 'free', haltBudget);
   assert.strictEqual(haltDecision.degradeMode, 'official_only');
-  // 因為 month_revenue 優先序是 finmind -> twse，fallback 後仍有 twse 可用
+  // 因為 market_daily_latest 包含 twse，在攔截 FinMind 後應保留 twse
   assert.strictEqual(haltDecision.finalProviderOrder.includes('twse'), true);
 });
 
