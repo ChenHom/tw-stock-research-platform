@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { MigrationManager } from '../modules/storage/MigrationManager.js';
 import process from 'node:process';
 import path from 'node:path';

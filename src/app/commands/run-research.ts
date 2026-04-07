@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { bootstrap } from '../bootstrap.js';
 import { toTaipeiDateString } from '../../core/utils/date.js';
 
