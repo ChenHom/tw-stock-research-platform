@@ -116,6 +116,16 @@ export class PostgresResearchRunRepository implements ResearchRunRepositoryContr
     return rows.length > 0 ? (rows[0] as any) : null;
   }
 
+  async getRunById(runId: string): Promise<ResearchRun | null> {
+    const rows = await this.sql`
+      SELECT run_id as "runId", trade_date as "tradeDate", criteria_json as "criteria", 
+             top_n as "topN", account_tier as "accountTier", status, started_at as "startedAt"
+      FROM research_runs
+      WHERE run_id = ${runId}
+    `;
+    return rows.length > 0 ? (rows[0] as any) : null;
+  }
+
   async findRunsByDate(date: string): Promise<ResearchRun[]> {
     const rows = await this.sql`
       SELECT run_id as "runId", trade_date as "tradeDate", criteria_json as "criteria", 

@@ -59,6 +59,10 @@ export class InMemoryResearchRunRepository implements ResearchRunRepositoryContr
     return this.runs[this.runs.length - 1] || null;
   }
 
+  async getRunById(runId: string): Promise<ResearchRun | null> {
+    return this.runs.find(r => r.runId === runId) || null;
+  }
+
   async findRunsByDate(date: string): Promise<ResearchRun[]> {
     return this.runs.filter(r => r.tradeDate === date);
   }
