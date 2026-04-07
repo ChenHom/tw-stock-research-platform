@@ -21,8 +21,9 @@ export class TwseOpenApiProvider implements DataProvider<MarketDailyRow | Valuat
     context: FetchContext
   ): Promise<NormalizedResponse<MarketDailyRow | ValuationDailyRow>> {
     const { dataset } = query;
-    const mode = context.accountTier; // 使用 tier 作為快取區隔的一部分
-    const cacheKey = CacheKeyFactory.create(dataset, mode, query.stockId, new Date().toISOString().split('T')[0]);
+    const mode = context.accountTier; 
+    const queryDate = query.startDate || this.toTaipeiDate(new Date());
+    const cacheKey = CacheKeyFactory.create(dataset, mode, query.stockId, queryDate);
 
     // 1. 檢查快取
     if (this.cache && context.useCache !== false) {
@@ -48,14 +49,19 @@ export class TwseOpenApiProvider implements DataProvider<MarketDailyRow | Valuat
       const response = await fetch(`${this.baseUrl}${endpoint}`);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`回傳格式錯誤: 預期 JSON 但收到 ${contentType}`);
+      }
+
       const rawData = await response.json() as any[];
-      const data = this.normalize(dataset, rawData, query.stockId);
+      const data = this.normalize(dataset, rawData, query.stockId, queryDate);
 
       const source: SourceMetadata = {
         provider: this.providerName,
         dataset,
         fetchedAt: new Date().toISOString(),
-        asOf: new Date().toISOString().split('T')[0],
+        asOf: queryDate,
         normalizationVersion: this.normalizationVersion,
         isFallback: false,
         isCacheHit: false,
@@ -83,14 +89,23 @@ export class TwseOpenApiProvider implements DataProvider<MarketDailyRow | Valuat
     }
   }
 
-  private normalize(dataset: string, raw: any[], stockId?: string): any[] {
-    // 若有提供 stockId，則進行過濾
+  private toTaipeiDate(date: Date): string {
+    return new Intl.DateTimeFormat('zh-TW', {
+      timeZone: 'Asia/Taipei',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(date).replace(/\//g, '-');
+  }
+
+  private normalize(dataset: string, raw: any[], stockId?: string, tradeDate?: string): any[] {
     const filtered = stockId ? raw.filter(r => (r.Code || r.證券代號) === stockId) : raw;
+    const finalDate = tradeDate || this.toTaipeiDate(new Date());
 
     if (dataset === 'market_daily') {
       return filtered.map(r => ({
         stockId: r.Code || r.證券代號,
-        tradeDate: new Date().toISOString().split('T')[0],
+        tradeDate: finalDate,
         open: parseFloat(r.OpeningPrice || r.開盤價) || 0,
         high: parseFloat(r.HighestPrice || r.最高價) || 0,
         low: parseFloat(r.LowestPrice || r.最低價) || 0,
@@ -104,7 +119,7 @@ export class TwseOpenApiProvider implements DataProvider<MarketDailyRow | Valuat
     if (dataset === 'daily_valuation') {
       return filtered.map(r => ({
         stockId: r.Code || r.證券代號,
-        tradeDate: new Date().toISOString().split('T')[0],
+        tradeDate: finalDate,
         peRatio: parseFloat(r.PEratio || r.本益比) || 0,
         pbRatio: parseFloat(r.PBRatio || r.股價淨值比) || 0,
         dividendYield: parseFloat(r.YieldYield || r.殖利率) || 0

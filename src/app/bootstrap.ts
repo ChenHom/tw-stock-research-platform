@@ -5,10 +5,14 @@ import { AbsoluteStopLossRule, ThesisBrokenRule } from '../modules/rules/RiskRul
 import { CandidatePoolAddRule } from '../modules/rules/StrategyRules.js';
 import { CustomStock1513RangeRule } from '../modules/rules/CustomOverrides.js';
 import { TwseOpenApiProvider } from '../modules/providers/twse/TwseOpenApiProvider.js';
+import { FinMindProvider } from '../modules/providers/finmind/FinMindProvider.js';
+import { ProviderRegistry } from '../modules/providers/ProviderRegistry.js';
 import { FeatureBuilder } from '../modules/features/FeatureBuilder.js';
 import { ThesisTracker } from '../modules/research/ThesisTracker.js';
 import { DecisionComposer } from '../modules/research/DecisionComposer.js';
 import { MemoryCacheStore } from '../modules/cache/CacheEnvelope.js';
+import { InMemoryFeatureSnapshotRepository, InMemoryFinalDecisionRepository } from '../modules/storage/InMemoryRepositories.js';
+import { ResearchPipelineService } from './services/ResearchPipelineService.js';
 
 export function bootstrap() {
   const cache = new MemoryCacheStore();
@@ -18,10 +22,16 @@ export function bootstrap() {
   const thesisTracker = new ThesisTracker();
   const decisionComposer = new DecisionComposer();
   
-  // 註冊 Providers (注入快取)
-  const twseProvider = new TwseOpenApiProvider(cache);
+  // 1. 存儲層
+  const featureSnapshotRepo = new InMemoryFeatureSnapshotRepository();
+  const finalDecisionRepo = new InMemoryFinalDecisionRepository();
 
-  // 註冊規則
+  // 2. 資料來源層
+  const twseProvider = new TwseOpenApiProvider(cache);
+  const finmindProvider = new FinMindProvider(cache);
+  const providerRegistry = new ProviderRegistry([twseProvider, finmindProvider]);
+
+  // 3. 規則引擎層
   const ruleRegistry = new DefaultRuleRegistry();
   ruleRegistry.register(new AbsoluteStopLossRule());
   ruleRegistry.register(new ThesisBrokenRule());
@@ -30,7 +40,20 @@ export function bootstrap() {
   
   const ruleEngine = new DefaultRuleEngine(ruleRegistry);
 
+  // 4. 核心流程層 (Orchestration)
+  const researchPipeline = new ResearchPipelineService({
+    router,
+    providerRegistry,
+    featureBuilder,
+    ruleEngine,
+    thesisTracker,
+    decisionComposer,
+    featureSnapshotRepository: featureSnapshotRepo,
+    finalDecisionRepository: finalDecisionRepo
+  });
+
   return {
+    cache,
     router,
     budgetGuard,
     featureBuilder,
@@ -39,7 +62,14 @@ export function bootstrap() {
     ruleRegistry,
     ruleEngine,
     providers: {
-      twse: twseProvider
-    }
+      twse: twseProvider,
+      finmind: finmindProvider
+    },
+    providerRegistry,
+    repositories: {
+      featureSnapshots: featureSnapshotRepo,
+      finalDecisions: finalDecisionRepo
+    },
+    researchPipeline
   };
 }

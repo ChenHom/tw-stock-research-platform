@@ -12,6 +12,7 @@
     "db:rollback": "NODE_OPTIONS='--loader ts-node/esm' node src/app/migrate.ts rollback",
     "db:reset": "NODE_OPTIONS='--loader ts-node/esm' node src/app/migrate.ts reset",
     "db:clear": "NODE_OPTIONS='--loader ts-node/esm' node src/app/migrate.ts clear",
+    "research": "NODE_OPTIONS='--loader ts-node/esm' node src/app/commands/run-research.ts",
     "dev:tree": "node ./src/app/print-tree.js",
     "prepare": "husky"
   },

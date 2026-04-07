@@ -69,6 +69,18 @@ export const DATASET_CAPABILITIES: DatasetCapability[] = [
     costModel: { freeTierPerRequest: 1 },
     cacheTtlSeconds: 900, // 15分鐘 (新聞需較即時)
     mvpRequired: true
+  },
+  {
+    dataset: 'institutional_flow',
+    sourceOfTruth: 'finmind',
+    providerOrder: ['finmind', 'twse'],
+    freeMode: 'per_stock',
+    backerMode: 'bulk',
+    sponsorMode: 'bulk',
+    costWeight: 2,
+    costModel: { freeTierPerRequest: 1, bulkMultiplier: 30 },
+    cacheTtlSeconds: 14400,
+    mvpRequired: true
   }
 ];
 

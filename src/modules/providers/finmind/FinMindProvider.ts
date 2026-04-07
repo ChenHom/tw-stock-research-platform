@@ -5,7 +5,9 @@ import type { CacheStore } from '../../cache/CacheEnvelope.js';
 import { CacheKeyFactory } from '../../cache/CacheKeyFactory.js';
 import { DATASET_CAPABILITIES } from '../../../config/datasets.js';
 
-export class FinMindProvider implements DataProvider<any> {
+export class FinMindProvider implements DataProvider<
+  MarketDailyRow | MonthRevenueRow | FinancialStatementRow | InstitutionalFlowRow | MarginShortRow | NewsRow
+> {
   readonly providerName = 'finmind';
   private readonly baseUrl = 'https://api.finmindtrade.com/api/v4/data';
   private readonly token = process.env.FINMIND_API_TOKEN;
