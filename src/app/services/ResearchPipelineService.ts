@@ -11,6 +11,7 @@ import type { BudgetSnapshot } from '../../modules/budget/RateBudgetGuard.js';
 import { ProviderRegistry } from '../../modules/providers/ProviderRegistry.js';
 import { ThesisTracker, type ThesisSnapshot } from '../../modules/research/ThesisTracker.js';
 import { DecisionComposer } from '../../modules/research/DecisionComposer.js';
+import { getDaysAgo } from '../../core/utils/date.js';
 
 export interface ResearchPipelineDeps {
   router: DatasetRouter;
@@ -33,11 +34,14 @@ export class ResearchPipelineService {
   ): Promise<RunResearchOutput> {
     console.log(`[Pipeline] 開始研究任務: ${input.stockId} @ ${input.tradeDate}`);
 
-    // 1. 抓取多維度資料
+    // 1. 抓取多維度資料 (P0-3: 增加歷史價量)
     const marketDaily = await this.fetchSingle('market_daily', input, budget);
     const valuationDaily = await this.fetchSingle('daily_valuation', input, budget);
     const institutionalFlow = await this.fetchSingle('institutional_flow', input, budget);
     const monthRevenue = await this.fetchSingle('month_revenue', input, budget);
+    
+    // 抓取近 30 日歷史資料用於計算均線
+    const history = await this.fetchRange('market_daily', input.stockId, getDaysAgo(30, new Date(input.tradeDate)), input.tradeDate, input, budget);
 
     // 2. 構建特徵集
     const featureInput: FeatureBuildInput = {
@@ -47,7 +51,7 @@ export class ResearchPipelineService {
       valuationDaily: valuationDaily?.data?.[0],
       institutionalFlow: institutionalFlow?.data?.[0],
       monthRevenue: monthRevenue?.data?.[0],
-      history: [] // 基礎版先空，之後可擴充歷史序列
+      history: history?.data || [] // 餵入歷史資料 (P0-3)
     };
 
     const featureSet = this.deps.featureBuilder.build(featureInput);
@@ -90,20 +94,18 @@ export class ResearchPipelineService {
         : undefined
     });
 
-    // 5. 合成最終決策
+    // 5. 合成最終決策 (P0-1: 傳遞正確的 none 狀態)
     const finalDecision = this.deps.decisionComposer.compose({
       stockId: input.stockId,
       asOf: input.tradeDate,
       ruleResults,
-      thesisStatus: thesisStatus === 'none' ? 'active' : thesisStatus,
+      thesisStatus: thesisStatus,
       valuationGap: undefined
     });
 
     // 6. 持久化
     await this.deps.featureSnapshotRepository.save(featureSnapshot);
     await this.deps.finalDecisionRepository.save(finalDecision);
-
-    console.log(`[Pipeline] 研究完成。決策: ${finalDecision.action}, 信心度: ${(finalDecision.confidence * 100).toFixed(1)}%`);
 
     return {
       stockId: input.stockId,
@@ -122,42 +124,39 @@ export class ResearchPipelineService {
     };
   }
 
-  private async fetchSingle(
+  private async fetchSingle(dataset: string, input: RunResearchInput, budget?: BudgetSnapshot) {
+    return this.fetchRange(dataset, input.stockId, input.tradeDate, input.tradeDate, input, budget);
+  }
+
+  private async fetchRange(
     dataset: string,
+    stockId: string,
+    startDate: string,
+    endDate: string,
     input: RunResearchInput,
     budget?: BudgetSnapshot
   ) {
-    const routing = this.deps.router.decide(dataset, input.accountTier, budget, input.stockId);
-
-    if (!routing.canProceed) {
-      console.warn(`[Pipeline] 跳過資料集 ${dataset}: 路由不可行 (${routing.degradeMode})`);
-      return null;
-    }
-
-    let lastError: unknown;
+    const routing = this.deps.router.decide(dataset, input.accountTier, budget, stockId);
+    if (!routing.canProceed) return null;
 
     for (const providerName of routing.finalProviderOrder) {
       const provider = this.deps.providerRegistry.getByName(providerName);
       if (!provider || !provider.supports(dataset)) continue;
 
-      const query: DatasetQuery = {
-        dataset,
-        stockId: input.stockId,
-        startDate: dataset === 'month_revenue' ? input.tradeDate.slice(0, 7) + '-01' : input.tradeDate
-      };
-
       try {
-        return await provider.fetch(query, {
+        return await provider.fetch({
+          dataset,
+          stockId,
+          startDate,
+          endDate
+        }, {
           accountTier: input.accountTier,
-          useCache: input.useCache ?? true,
-          allowFallback: routing.supportsFallback
+          useCache: input.useCache ?? true
         });
       } catch (error) {
-        console.error(`[Pipeline] Provider ${providerName} 抓取 ${dataset} 失敗:`, error);
-        lastError = error;
+        console.error(`[Pipeline] Provider ${providerName} 抓取 ${dataset} 失敗`);
       }
     }
-
     return null;
   }
 }

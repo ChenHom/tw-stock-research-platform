@@ -61,14 +61,16 @@ export class FeatureBuilder implements FeatureBuilderContract {
   }
 
   private calculateMA(history: any[], window: number): number {
-    if (history.length < window) return 0;
-    const subset = history.slice(-window); // 取最近的資料
-    return subset.reduce((acc, cur) => acc + (cur.close || 0), 0) / window;
+    if (!history || history.length < window) return 0;
+    const subset = history.slice(-window);
+    const sum = subset.reduce((acc, cur) => acc + (cur.close ?? cur.close_price ?? 0), 0);
+    return sum / window;
   }
 
   private calculateVolMA(history: any[], window: number): number {
-    if (history.length < window) return 0;
-    const subset = history.slice(-window); // 取最近的資料
-    return subset.reduce((acc, cur) => acc + (cur.volume || 0), 0) / window;
+    if (!history || history.length < window) return 0;
+    const subset = history.slice(-window);
+    const sum = subset.reduce((acc, cur) => acc + (cur.volume ?? cur.TradeVolume ?? 0), 0);
+    return sum / window;
   }
 }

@@ -10,7 +10,7 @@ export type FeatureKey =
  * 核心特徵集
  */
 export interface StockFeatureSet {
-  // [key: string]: any; // 移除過寬的 index signature
+  [key: string]: any; // 必須保留索引簽名以支援 JSON 序列化與動態存取
   stockId: string;
   tradeDate: string;
 

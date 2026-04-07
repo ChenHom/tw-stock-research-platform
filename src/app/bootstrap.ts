@@ -11,10 +11,12 @@ import { FeatureBuilder } from '../modules/features/FeatureBuilder.js';
 import { ThesisTracker } from '../modules/research/ThesisTracker.js';
 import { DecisionComposer } from '../modules/research/DecisionComposer.js';
 import { MemoryCacheStore } from '../modules/cache/CacheEnvelope.js';
-import { InMemoryFeatureSnapshotRepository, InMemoryFinalDecisionRepository } from '../modules/storage/InMemoryRepositories.js';
+import { PostgresFeatureSnapshotRepository, PostgresFinalDecisionRepository } from '../modules/storage/PostgresRepositories.js';
 import { ResearchPipelineService } from './services/ResearchPipelineService.js';
+import { createSqlContext } from '../modules/storage/SqlContext.js';
 
 export function bootstrap() {
+  const sql = createSqlContext();
   const cache = new MemoryCacheStore();
   const router = new DefaultDatasetRouter();
   const budgetGuard = new RateBudgetGuard();
@@ -22,9 +24,9 @@ export function bootstrap() {
   const thesisTracker = new ThesisTracker();
   const decisionComposer = new DecisionComposer();
   
-  // 1. 存儲層
-  const featureSnapshotRepo = new InMemoryFeatureSnapshotRepository();
-  const finalDecisionRepo = new InMemoryFinalDecisionRepository();
+  // 1. 存儲層 (切換為 Postgres)
+  const featureSnapshotRepo = new PostgresFeatureSnapshotRepository(sql);
+  const finalDecisionRepo = new PostgresFinalDecisionRepository(sql);
 
   // 2. 資料來源層
   const twseProvider = new TwseOpenApiProvider(cache);

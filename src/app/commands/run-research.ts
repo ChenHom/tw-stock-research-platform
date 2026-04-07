@@ -1,8 +1,9 @@
 import { bootstrap } from '../bootstrap.js';
+import { toTaipeiDateString } from '../../core/utils/date.js';
 
 async function main() {
   const stockId = process.argv[2] || '2330';
-  const tradeDate = process.argv[3] || new Date().toISOString().split('T')[0];
+  const tradeDate = process.argv[3] || toTaipeiDateString();
 
   console.log(`[CLI] 執行研究命令: ${stockId} @ ${tradeDate}`);
 
