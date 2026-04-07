@@ -10,7 +10,7 @@ test('Postgres Repositories (儲存與讀取驗證): 應能成功寫入並讀回
   const featureRepo = new PostgresFeatureSnapshotRepository(sql);
   const decisionRepo = new PostgresFinalDecisionRepository(sql);
 
-  const stockId = 'TEST_' + Date.now();
+  const stockId = 'T' + Math.floor(Date.now() / 1000).toString().slice(-5);
   
   try {
     // 1. 預插入 Stock Master (滿足外鍵)

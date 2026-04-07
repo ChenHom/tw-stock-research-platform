@@ -11,6 +11,7 @@ import { FeatureBuilder } from '../modules/features/FeatureBuilder.js';
 import { ThesisTracker } from '../modules/research/ThesisTracker.js';
 import { DecisionComposer } from '../modules/research/DecisionComposer.js';
 import { RedisCacheStore } from '../modules/cache/RedisCacheStore.js';
+import { MemoryCacheStore } from '../modules/cache/CacheEnvelope.js';
 import { PostgresFeatureSnapshotRepository, PostgresFinalDecisionRepository } from '../modules/storage/PostgresRepositories.js';
 import { InMemoryFeatureSnapshotRepository, InMemoryFinalDecisionRepository } from '../modules/storage/InMemoryRepositories.js';
 import { ResearchPipelineService } from './services/ResearchPipelineService.js';
@@ -26,7 +27,16 @@ export interface BootstrapOverrides {
 export function bootstrap(overrides?: BootstrapOverrides) {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const redisPort = process.env.REDIS_PORT || '6379';
-  const cache = new RedisCacheStore({ url: `redis://${redisHost}:${redisPort}` });
+  const cacheType = process.env.CACHE_TYPE || 'in-memory';
+  
+  let cache;
+  if (cacheType === 'redis') {
+    console.log('[Bootstrap] 使用 Redis 快取層');
+    cache = new RedisCacheStore({ url: `redis://${redisHost}:${redisPort}` });
+  } else {
+    console.log('[Bootstrap] 使用 In-Memory 快取層');
+    cache = new MemoryCacheStore();
+  }
 
   const router = new DefaultDatasetRouter();
   const budgetGuard = new RateBudgetGuard();

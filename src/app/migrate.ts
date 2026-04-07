@@ -26,9 +26,6 @@ async function main() {
       case 'up':
         await manager.up();
         break;
-      case 'rollback':
-        await manager.rollback(steps);
-        break;
       case 'clear':
         await manager.clear();
         break;

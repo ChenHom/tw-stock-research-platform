@@ -62,35 +62,6 @@ export class MigrationManager {
   }
 
   /**
-   * 回滾遷移 (Rollback Down)
-   */
-  async rollback(steps: number = 1): Promise<void> {
-    await this.init();
-    const batches = await this.sql`
-      SELECT DISTINCT batch FROM _migrations 
-      ORDER BY batch DESC LIMIT ${steps}
-    `;
-
-    if (batches.length === 0) {
-      console.log('[遷移系統] 沒有可回滾的記錄。');
-      return;
-    }
-
-    const targetBatches = batches.map((b: any) => b.batch);
-    const toRollback = await this.sql`
-      SELECT id, name, batch FROM _migrations 
-      WHERE batch IN ${this.sql(targetBatches)}
-      ORDER BY id DESC
-    `;
-
-    console.log(`[遷移系統] 準備回滾 ${toRollback.length} 項遷移 (Batches: ${targetBatches.join(', ')})...`);
-
-    // 注意：目前的簡易實作假設每個 .sql 只有 UP，DOWN 邏輯建議在未來加入 .ts 遷移支援
-    // 此處先執行 "Clean & Re-run up to target" 作為安全回滾方案
-    console.warn('[警告] 簡易遷移引擎暫不支援 .sql 自動反向執行，建議執行重置。');
-  }
-
-  /**
    * 清空資料庫 (Clear All Tables)
    */
   async clear(): Promise<void> {
