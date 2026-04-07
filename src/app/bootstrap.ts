@@ -14,7 +14,7 @@ import { RedisCacheStore } from '../modules/cache/RedisCacheStore.js';
 import { PostgresFeatureSnapshotRepository, PostgresFinalDecisionRepository } from '../modules/storage/PostgresRepositories.js';
 import { ResearchPipelineService } from './services/ResearchPipelineService.js';
 import { createSqlContext } from '../modules/storage/SqlContext.js';
-import { ScreeningService } from '../modules/features/ScreeningService.js';
+import { ScreeningService } from './services/ScreeningService.js';
 
 export function bootstrap() {
   const sql = createSqlContext();
@@ -38,8 +38,8 @@ export function bootstrap() {
   const finmindProvider = new FinMindProvider(cache);
   const providerRegistry = new ProviderRegistry([twseProvider, finmindProvider]);
 
-  // 3. 篩選與特徵層
-  const screeningService = new ScreeningService(twseProvider);
+  // 3. 篩選與特徵層 (使用 Router 抽象層，支援全市場初篩)
+  const screeningService = new ScreeningService(router, providerRegistry);
 
   // 4. 規則引擎層
   const ruleRegistry = new DefaultRuleRegistry();

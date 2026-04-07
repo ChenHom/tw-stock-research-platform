@@ -38,48 +38,39 @@ export class ScreeningService {
   async screen(criteria: ScreeningCriteria): Promise<ScreenedStock[]> {
     console.log('[Screening] 正在執行多維度候選池掃描...');
 
-    // 1. 抓取必要資料集 (盡量利用 Bulk 模式)
-    const [marketResp, valuationResp, revenueResp, instResp] = await Promise.all([
+    // 1. 抓取必要資料集 (僅限支援 Bulk 模式的 TWSE 資料)
+    // 注意：營收與法人在 Free Tier 下無法 Bulk 抓取，改由單檔 Research Pipeline 補強
+    const [marketResp, valuationResp] = await Promise.all([
       this.fetchDataset('market_daily_latest'),
-      this.fetchDataset('daily_valuation'),
-      this.fetchDataset('month_revenue'),
-      this.fetchDataset('institutional_flow')
+      this.fetchDataset('daily_valuation')
     ]);
 
     if (!marketResp || !valuationResp) throw new Error('[Screening] 無法取得基礎量價或估值資料。');
 
     // 2. 建立資料索引 Map
     const valuationMap = new Map((valuationResp.data as ValuationDailyRow[]).map(v => [v.stockId, v]));
-    const revenueMap = new Map((revenueResp?.data as MonthRevenueRow[] || []).map(r => [r.stockId, r]));
-    const instMap = new Map((instResp?.data as InstitutionalFlowRow[] || []).map(i => [i.stockId, i]));
 
-    // 3. 執行複合過濾
+    // 3. 執行過濾 (第一層：量價與估值)
     const results: ScreenedStock[] = [];
     for (const m of marketResp.data as MarketDailyRow[]) {
       const v = valuationMap.get(m.stockId);
-      const r = revenueMap.get(m.stockId);
-      const i = instMap.get(m.stockId);
-
       if (!v) continue;
 
       // --- A. 基礎量價與估值過濾 ---
       if (criteria.minVolume && m.volume < criteria.minVolume) continue;
       if (criteria.maxPe && (v.peRatio === 0 || v.peRatio > criteria.maxPe)) continue;
       if (criteria.maxPb && (v.pbRatio === 0 || v.pbRatio > criteria.maxPb)) continue;
+      if (criteria.minYield && v.dividendYield < criteria.minYield) continue;
 
-      // --- B. 營收與籌碼過濾 ---
-      const revenueYoy = r?.revenueYoy ?? 0;
-      const institutionalNet = i?.totalNet ?? 0;
+      // --- B. 營收與籌碼 (初篩階段暫不具備資料，留待單檔 Research 補強) ---
+      const revenueYoy = 0;
+      const institutionalNet = 0;
 
-      if (criteria.minRevenueYoy && revenueYoy < criteria.minRevenueYoy) continue;
-      if (criteria.minInstitutionalNet && institutionalNet < criteria.minInstitutionalNet) continue;
-
-      // --- C. 計算初步研究分數 (用於候選池排序) ---
+      // --- C. 計算初步研究分數 (僅依據現有資料) ---
       let preliminaryScore = 0;
-      if (v.peRatio < 15 && v.peRatio > 0) preliminaryScore += 20;
-      if (revenueYoy > 0.2) preliminaryScore += 30;
-      if (institutionalNet > 0) preliminaryScore += 30;
-      if (m.volume > 2000) preliminaryScore += 20;
+      if (v.peRatio < 15 && v.peRatio > 0) preliminaryScore += 40;
+      if (v.dividendYield > 5) preliminaryScore += 30;
+      if (m.volume > 2000) preliminaryScore += 30;
 
       if (criteria.minTotalScore && preliminaryScore < criteria.minTotalScore) continue;
 
