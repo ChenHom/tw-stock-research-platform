@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { bootstrap } from '../bootstrap.js';
+import { PerformanceReportGenerator } from '../../modules/reporting/PerformanceReportGenerator.js';
 
 async function main() {
   const mode = process.argv[2] || 'latest';
@@ -8,6 +9,7 @@ async function main() {
   const app = bootstrap();
   const perfService = app.researchPerformanceService;
   const queryService = app.researchRunQueryService;
+  const reportGenerator = new PerformanceReportGenerator();
 
   try {
     let runId = param;
@@ -22,22 +24,24 @@ async function main() {
       return;
     }
 
-    console.log(`[CLI] 正在查詢任務績效: ${runId}`);
+    console.log(`[CLI] 正在分析任務績效: ${runId}`);
+    
+    // 獲取整體統計
     const stats = await perfService.getRunPerformance(runId);
+    // 獲取動作拆解
+    const breakdown = await perfService.getActionBreakdown(runId);
 
-    if (!stats) {
-      console.log('尚無該任務的成效數據 (可能尚未回填)。');
+    if (!stats || breakdown.length === 0) {
+      console.log('尚無該任務的成效數據 (可能尚未執行回填任務: npm run outcomes latest)。');
       return;
     }
 
-    console.log('\n--- 研究成效統計 ---');
-    console.log(`- 總研究檔數: ${stats.totalCount}`);
-    console.log(`- 方向正確數: ${stats.correctDirectionCount}`);
-    console.log(`- 預測準確率: ${(stats.accuracy * 100).toFixed(1)}%`);
-    console.log(`- 5日平均報酬: ${(stats.averageReturn5D * 100).toFixed(2)}%`);
+    console.log('\n--- 執行深度績效分析 ---\n');
+    const mdReport = reportGenerator.buildPerformanceMarkdown(runId, stats, breakdown);
+    console.log(mdReport);
 
   } catch (error) {
-    console.error('[CLI] 績效查詢失敗:', error);
+    console.error('[CLI] 績效分析失敗:', error);
     process.exit(1);
   }
 }
