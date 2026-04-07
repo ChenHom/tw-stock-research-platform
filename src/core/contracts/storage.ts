@@ -32,4 +32,9 @@ export interface ResearchRunRepository {
   save(run: ResearchRun): Promise<void>;
   updateStatus(runId: string, status: ResearchRun['status']): Promise<void>;
   saveResults(results: CandidateResearchResultRecord[]): Promise<void>;
+  
+  // 查詢功能 (P1)
+  getLatestRun(): Promise<ResearchRun | null>;
+  findRunsByDate(date: string): Promise<ResearchRun[]>;
+  getRunResults(runId: string): Promise<CandidateResearchResultRecord[]>;
 }

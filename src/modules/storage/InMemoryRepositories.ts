@@ -52,4 +52,16 @@ export class InMemoryResearchRunRepository implements ResearchRunRepositoryContr
     this.results.push(...results);
     console.log(`[Storage] 儲存了 ${results.length} 筆研究結果`);
   }
+
+  async getLatestRun(): Promise<ResearchRun | null> {
+    return this.runs[this.runs.length - 1] || null;
+  }
+
+  async findRunsByDate(date: string): Promise<ResearchRun[]> {
+    return this.runs.filter(r => r.tradeDate === date);
+  }
+
+  async getRunResults(runId: string): Promise<CandidateResearchResultRecord[]> {
+    return this.results.filter(r => r.runId === runId).sort((a, b) => b.researchTotalScore - a.researchTotalScore);
+  }
 }

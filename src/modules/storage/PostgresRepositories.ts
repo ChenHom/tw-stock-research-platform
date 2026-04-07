@@ -95,11 +95,45 @@ export class PostgresResearchRunRepository implements ResearchRunRepositoryContr
         run_id: r.runId,
         stock_id: r.stockId,
         preliminary_score: r.preliminaryScore,
-        research_total_score: r.researchTotalScore, // 修正對應新 Schema
+        research_total_score: r.researchTotalScore, 
         final_action: r.finalAction,
         confidence: r.confidence,
         summary: r.summary
       })))}
     `;
+  }
+
+  async getLatestRun(): Promise<ResearchRun | null> {
+    const rows = await this.sql`
+      SELECT run_id as "runId", trade_date as "tradeDate", criteria_json as "criteria", 
+             top_n as "topN", account_tier as "accountTier", status, started_at as "startedAt"
+      FROM research_runs
+      ORDER BY created_at DESC
+      LIMIT 1
+    `;
+    return rows.length > 0 ? (rows[0] as any) : null;
+  }
+
+  async findRunsByDate(date: string): Promise<ResearchRun[]> {
+    const rows = await this.sql`
+      SELECT run_id as "runId", trade_date as "tradeDate", criteria_json as "criteria", 
+             top_n as "topN", account_tier as "accountTier", status, started_at as "startedAt"
+      FROM research_runs
+      WHERE trade_date = ${date}
+      ORDER BY created_at DESC
+    `;
+    return rows as any[];
+  }
+
+  async getRunResults(runId: string): Promise<CandidateResearchResultRecord[]> {
+    const rows = await this.sql`
+      SELECT run_id as "runId", stock_id as "stockId", preliminary_score as "preliminaryScore", 
+             research_total_score as "researchTotalScore", final_action as "finalAction", 
+             confidence, summary
+      FROM candidate_research_results
+      WHERE run_id = ${runId}
+      ORDER BY research_total_score DESC
+    `;
+    return rows as any[];
   }
 }

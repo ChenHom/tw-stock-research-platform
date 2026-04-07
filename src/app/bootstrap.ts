@@ -26,6 +26,7 @@ import { ResearchPipelineService } from './services/ResearchPipelineService.js';
 import { createSqlContext } from '../modules/storage/SqlContext.js';
 import { ScreeningService } from './services/ScreeningService.js';
 import { CandidateResearchService } from './services/CandidateResearchService.js';
+import { ResearchRunQueryService } from './services/ResearchRunQueryService.js';
 import { CandidateResearchReportGenerator } from '../modules/reporting/CandidateResearchReportGenerator.js';
 
 export interface BootstrapOverrides {
@@ -111,6 +112,8 @@ export function bootstrap(overrides?: BootstrapOverrides) {
     researchRunRepo
   );
 
+  const researchRunQueryService = new ResearchRunQueryService(researchRunRepo);
+
   return {
     cache,
     router,
@@ -120,6 +123,7 @@ export function bootstrap(overrides?: BootstrapOverrides) {
     decisionComposer,
     screeningService,
     candidateResearchService,
+    researchRunQueryService,
     candidateResearchReportGenerator,
     ruleRegistry,
     ruleEngine,
