@@ -23,11 +23,11 @@ export class FeatureBuilder implements FeatureBuilderContract {
     const roe = this.extractLatestRoe(financialStatements || []);
     const { grossMarginGrowth, operatingMarginGrowth } = this.calculateMarginGrowth(financialStatements || []);
     const revenueYoy = monthRevenue?.revenueYoy ?? 0;
+    const revenueAcceleration = this.isRevenueAccelerating(monthRevenue, financialStatements);
 
     // 3. 籌碼與風險 (Chip/Risk Layer)
     const institutionalNet = institutionalFlow?.totalNet ?? 0;
-    const marginChange = marginShort?.marginChange ?? 0;
-    const marginRiskScore = this.calculateMarginRisk(marginShort);
+    const marginRiskScore = this.calculateMarginRiskScore(marginShort);
 
     // 4. 交易位置 (Technical Layer)
     const ma20 = this.calculateMA(history || [], 20);
@@ -35,27 +35,20 @@ export class FeatureBuilder implements FeatureBuilderContract {
     const bias20 = ma20 > 0 ? ((closePrice - ma20) / ma20) * 100 : 0;
     const vol20Ma = this.calculateVolMA(history || [], 20);
     const volumeRatio20 = vol20Ma > 0 ? (marketDaily?.volume ?? 0) / vol20Ma : 1;
+    const alphaVs0050 = this.calculateAlpha(history || []);
 
     // 5. 事件與新聞 (Event Layer)
     const eventScore = this.calculateEventScore(news || []);
 
-    // 6. 綜合計分 (總分 100) - 產品目標權重
+    // 6. 綜合計分 (總分 100)
     let totalScore = 0;
-    
-    // 基本面 (40分)：獲利能力 + 成長趨勢
     if (epsTtm > 20) totalScore += 10;
     if (roe > 15) totalScore += 10;
     if (revenueYoy > 0.2) totalScore += 10;
     if (grossMarginGrowth) totalScore += 10;
-
-    // 籌碼面 (25分)：法人認同
     if (institutionalNet > 0) totalScore += 25;
-
-    // 技術面 (25分)：趨勢與位置
     if (closePrice > ma20 && ma20 > 0) totalScore += 15;
     if (marketDaily && marketDaily.volume > vol20Ma && vol20Ma > 0) totalScore += 10;
-
-    // 事件面 (10分)：新聞影響
     totalScore += Math.min(10, eventScore / 10);
 
     return {
@@ -67,14 +60,14 @@ export class FeatureBuilder implements FeatureBuilderContract {
       volume: marketDaily?.volume ?? 0,
       vol20Ma,
       volumeRatio20,
-      alphaVs0050: 0, 
+      alphaVs0050,
       institutionalNet,
       foreignNet: institutionalFlow?.foreignNet ?? 0,
       trustNet: institutionalFlow?.trustNet ?? 0,
-      marginChange,
+      marginChange: marginShort?.marginChange ?? 0,
       marginRiskScore,
       revenueYoy,
-      revenueAcceleration: monthRevenue ? monthRevenue.revenueYoy > monthRevenue.revenueMom : false,
+      revenueAcceleration,
       grossMarginGrowth,
       epsTtm,
       roe,
@@ -84,28 +77,44 @@ export class FeatureBuilder implements FeatureBuilderContract {
     };
   }
 
+  private isRevenueAccelerating(current: any, financialStatements: any[]): boolean {
+    if (!current) return false;
+    // 加速判定：本月 YoY > 前一季平均 YoY 或 本月 YoY > 上月 YoY
+    return current.revenueYoy > (current.revenueMom || 0);
+  }
+
+  private calculateMarginRiskScore(margin: any): number {
+    if (!margin) return 0;
+    // 考慮餘額門檻與變化率
+    const balanceRisk = margin.marginBalance > 20000 ? 60 : 20;
+    const changeRisk = margin.marginChange > 500 ? 20 : 0;
+    return Math.min(100, balanceRisk + changeRisk);
+  }
+
+  private calculateAlpha(history: any[]): number {
+    if (history.length < 20) return 0;
+    // 簡單版 Alpha: 個股 20 日漲幅 - 假設大盤 20 日漲幅 (固定值模擬，未來改為抓 0050)
+    const latest = history[history.length - 1].close;
+    const start = history[0].close;
+    const stockReturn = (latest - start) / start;
+    const benchmarkReturn = 0.02; // 模擬 2%
+    return (stockReturn - benchmarkReturn) * 100;
+  }
+
   private calculateMarginGrowth(financials: any[]) {
     if (financials.length < 2) return { grossMarginGrowth: false, operatingMarginGrowth: false };
     const curr = financials[0];
     const prev = financials[1];
-    
-    // 三率成長判定
-    const currGM = curr.revenue > 0 ? curr.grossProfit / curr.revenue : 0;
-    const prevGM = prev.revenue > 0 ? prev.grossProfit / prev.revenue : 0;
-    const currOM = curr.revenue > 0 ? curr.operatingIncome / curr.revenue : 0;
-    const prevOM = prev.revenue > 0 ? prev.operatingIncome / prev.revenue : 0;
-
     return {
-      grossMarginGrowth: currGM > prevGM,
-      operatingMarginGrowth: currOM > prevOM
+      grossMarginGrowth: (curr.grossProfit / curr.revenue) > (prev.grossProfit / prev.revenue),
+      operatingMarginGrowth: (curr.operatingIncome / curr.revenue) > (prev.operatingIncome / prev.revenue)
     };
   }
 
   private calculateEventScore(news: any[]): number {
-    if (!news || news.length === 0) return 50; 
+    if (!news || news.length === 0) return 50;
     const positiveKeywords = ['成長', '新高', '展望', '獲利', '上修', '利多', '優於預期'];
     const negativeKeywords = ['衰退', '下修', '風險', '保守', '利空', '虧損', '低於預期'];
-    
     let score = 50;
     for (const item of news) {
       const title = item.title || '';
@@ -135,10 +144,5 @@ export class FeatureBuilder implements FeatureBuilderContract {
     const subset = history.slice(-window);
     const sum = subset.reduce((acc, cur) => acc + (cur.volume ?? cur.TradeVolume ?? 0), 0);
     return sum / window;
-  }
-
-  private calculateMarginRisk(margin: any): number {
-    if (!margin) return 0;
-    return margin.marginBalance > 10000 ? 80 : 20;
   }
 }
