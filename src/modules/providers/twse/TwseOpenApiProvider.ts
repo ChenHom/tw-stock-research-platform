@@ -13,7 +13,7 @@ export class TwseOpenApiProvider implements DataProvider<MarketDailyRow | Valuat
   constructor(private readonly cache?: CacheStore) {}
 
   supports(dataset: string): boolean {
-    return ['market_daily', 'daily_valuation'].includes(dataset);
+    return ['market_daily_latest', 'daily_valuation'].includes(dataset);
   }
 
   async fetch(
@@ -37,7 +37,7 @@ export class TwseOpenApiProvider implements DataProvider<MarketDailyRow | Valuat
     }
 
     let endpoint = '';
-    if (dataset === 'market_daily') {
+    if (dataset === 'market_daily_latest') {
       endpoint = '/exchangeReport/STOCK_DAY_ALL';
     } else if (dataset === 'daily_valuation') {
       endpoint = '/exchangeReport/BWIBYK_ALL';

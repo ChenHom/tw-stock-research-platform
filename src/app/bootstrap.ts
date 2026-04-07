@@ -14,6 +14,7 @@ import { RedisCacheStore } from '../modules/cache/RedisCacheStore.js';
 import { PostgresFeatureSnapshotRepository, PostgresFinalDecisionRepository } from '../modules/storage/PostgresRepositories.js';
 import { ResearchPipelineService } from './services/ResearchPipelineService.js';
 import { createSqlContext } from '../modules/storage/SqlContext.js';
+import { ScreeningService } from '../modules/features/ScreeningService.js';
 
 export function bootstrap() {
   const sql = createSqlContext();
@@ -29,7 +30,6 @@ export function bootstrap() {
   const decisionComposer = new DecisionComposer();
   
   // 1. 存儲層 (切換為 Postgres)
-  console.log('[Bootstrap] 初始化存儲層...');
   const featureSnapshotRepo = new PostgresFeatureSnapshotRepository(sql);
   const finalDecisionRepo = new PostgresFinalDecisionRepository(sql);
 
@@ -38,7 +38,10 @@ export function bootstrap() {
   const finmindProvider = new FinMindProvider(cache);
   const providerRegistry = new ProviderRegistry([twseProvider, finmindProvider]);
 
-  // 3. 規則引擎層
+  // 3. 篩選與特徵層
+  const screeningService = new ScreeningService(twseProvider);
+
+  // 4. 規則引擎層
   const ruleRegistry = new DefaultRuleRegistry();
   ruleRegistry.register(new AbsoluteStopLossRule());
   ruleRegistry.register(new ThesisBrokenRule());
@@ -47,7 +50,7 @@ export function bootstrap() {
   
   const ruleEngine = new DefaultRuleEngine(ruleRegistry);
 
-  // 4. 核心流程層 (Orchestration)
+  // 5. 核心流程層 (Orchestration)
   const researchPipeline = new ResearchPipelineService({
     router,
     providerRegistry,
@@ -66,6 +69,7 @@ export function bootstrap() {
     featureBuilder,
     thesisTracker,
     decisionComposer,
+    screeningService,
     ruleRegistry,
     ruleEngine,
     providers: {

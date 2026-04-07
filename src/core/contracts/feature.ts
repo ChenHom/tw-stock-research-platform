@@ -16,10 +16,11 @@ export interface FeatureBuildInput {
   institutionalFlow?: InstitutionalFlowRow;
   monthRevenue?: MonthRevenueRow;
   marginShort?: MarginShortRow;
-  financialStatements?: FinancialStatementRow[]; // 加入此欄位
+  financialStatements?: FinancialStatementRow[];
+  news?: any[]; // 加入此欄位
   // 未來可擴充：歷史序列用於計算 MA20, RSI 等
   history?: MarketDailyRow[];
-}
+  }
 
 export interface FeatureBuilder {
   /**

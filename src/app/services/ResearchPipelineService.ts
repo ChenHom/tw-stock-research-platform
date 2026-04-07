@@ -34,7 +34,7 @@ export class ResearchPipelineService {
   ): Promise<RunResearchOutput> {
     console.log(`[Pipeline] 開始研究任務: ${input.stockId} @ ${input.tradeDate}`);
 
-    // 1. 抓取多維度資料 (P0-3: 增加歷史與籌碼)
+    // 1. 抓取多維度資料
     const marketDaily = await this.fetchSingle('market_daily_latest', input, budget);
     const valuationDaily = await this.fetchSingle('daily_valuation', input, budget);
     const institutionalFlow = await this.fetchSingle('institutional_flow', input, budget);
@@ -43,14 +43,16 @@ export class ResearchPipelineService {
     // 財報抓取 (TTM 需 4 季)
     const financialStatements = await this.fetchRange('financial_statements', input.stockId, getDaysAgo(365, new Date(input.tradeDate)), input.tradeDate, input, budget);
     
-    // 營收往前推 400 天確保能計算 YoY (P0-3)
+    // 營收往前推 400 天確保能計算 YoY
     const monthRevenue = await this.fetchRange('month_revenue', input.stockId, getDaysAgo(400, new Date(input.tradeDate)), input.tradeDate, input, budget);
     
-    // 抓取近 30 日歷史資料用於計算均線
+    // 抓取近 30 日歷史資料
     const history = await this.fetchRange('market_daily_history', input.stockId, getDaysAgo(30, new Date(input.tradeDate)), input.tradeDate, input, budget);
 
+    // 抓取新聞 (P0-3)
+    const news = await this.fetchRange('stock_news', input.stockId, getDaysAgo(7, new Date(input.tradeDate)), input.tradeDate, input, budget);
+
     // 2. 構建特徵集
-    // 找出最接近目標日期的營收資料
     const latestRevenue = monthRevenue?.data 
       ? [...monthRevenue.data].sort((a: any, b: any) => b.yearMonth.localeCompare(a.yearMonth))[0] 
       : undefined;
@@ -64,6 +66,7 @@ export class ResearchPipelineService {
       monthRevenue: latestRevenue,
       marginShort: marginShort?.data?.[0],
       financialStatements: financialStatements?.data || [],
+      news: news?.data || [],
       history: history?.data || []
     };
 
@@ -107,7 +110,7 @@ export class ResearchPipelineService {
         : undefined
     });
 
-    // 5. 合成最終決策 (P0-1: 傳遞正確的 none 狀態)
+    // 5. 合成最終決策
     const finalDecision = this.deps.decisionComposer.compose({
       stockId: input.stockId,
       asOf: input.tradeDate,
@@ -128,7 +131,8 @@ export class ResearchPipelineService {
         valuationDaily: valuationDaily?.data?.[0],
         institutionalFlow: institutionalFlow?.data?.[0],
         monthRevenue: monthRevenue?.data?.[0],
-        marginShort: marginShort?.data?.[0]
+        marginShort: marginShort?.data?.[0],
+        news: news?.data || []
       },
       featureSnapshot,
       thesisSnapshot: thesis,

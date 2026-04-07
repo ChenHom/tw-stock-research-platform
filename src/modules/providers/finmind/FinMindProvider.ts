@@ -210,6 +210,8 @@ export class FinMindProvider implements DataProvider<
             if (r.type === 'EPS' || r.type === '每股盈餘') g.eps = val;
             if (r.type === 'ROE' || r.type === '股東權益報酬率') g.roe = val;
             if (r.type === 'Revenue' || r.type === '營業收入') g.revenue = val;
+            if (r.type === 'GrossProfit' || r.type === '營業毛利') g.grossProfit = val;
+            if (r.type === 'OperatingIncome' || r.type === '營業利益') g.operatingIncome = val;
           }
           return Array.from(groups.values()).sort((a, b) => b.date.localeCompare(a.date));
         }

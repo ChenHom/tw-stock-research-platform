@@ -37,7 +37,7 @@ test('FeatureBuilder (可信度驗證): 應正確計算歷史序列與財報 TTM
   assert.ok(result.bias20 > 9.5 && result.bias20 < 9.6);
   // 驗證總分: 
   // Close > MA20 (+15)
-  // Vol > VolMA (+15)
+  // Vol > VolMA (+10)
   // EPS TTM 無加分 (門檻 20)
-  assert.strictEqual(result.totalScore, 30);
+  assert.strictEqual(result.totalScore, 25);
 });

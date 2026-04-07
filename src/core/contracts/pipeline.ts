@@ -16,6 +16,7 @@ export interface PipelineRawData {
   institutionalFlow?: any;
   monthRevenue?: any;
   marginShort?: any;
+  news?: any[];
 }
 
 export interface RunResearchOutput {
