@@ -10,7 +10,7 @@ export interface DecisionComposerInput {
 }
 
 export class DecisionComposer {
-  private readonly version = '1.3.1';
+  private readonly version = '1.3.2';
 
   // 動作優先級定義 (數值越高代表越優先/越強制)
   private readonly actionPriority: Record<RuleAction, number> = {
@@ -21,8 +21,7 @@ export class DecisionComposer {
     'BUY': 60,
     'ADD': 50,
     'WATCH': 40,
-    'HOLD': 30,
-    'NO_ACTION': 0
+    'HOLD': 30
   };
 
   /**
@@ -37,12 +36,12 @@ export class DecisionComposer {
     const exitRules = triggered.filter(r => ['EXIT', 'SELL', 'TRIM'].includes(r.action)).map(r => r.ruleId);
     const buyRules = triggered.filter(r => ['BUY', 'ADD'].includes(r.action)).map(r => r.ruleId);
 
-    // 2. 決定基礎動作 (取最高優先級)
+    // 2. 決定基礎動作 (取最高優先級，預設為 WATCH)
     const sortedTriggered = [...triggered].sort((a, b) => 
       (this.actionPriority[b.action] || 0) - (this.actionPriority[a.action] || 0)
     );
     const primaryRule = sortedTriggered[0];
-    let finalAction: RuleAction = primaryRule?.action || 'NO_ACTION';
+    let finalAction: RuleAction = primaryRule?.action || 'WATCH';
 
     // 3. 論點強制覆寫
     if (thesisStatus === 'broken' && this.actionPriority[finalAction] < this.actionPriority['EXIT']) {
@@ -91,7 +90,7 @@ export class DecisionComposer {
     else if (thesis === 'broken') parts.push('投資論點已破壞，強制建議出場。');
     else if (action === 'EXIT' || action === 'SELL' || action === 'TRIM') parts.push(`主導規則 [${primaryName || '未知'}] 建議減碼或出場。`);
     else if (action === 'BUY' || action === 'ADD') parts.push(`主導規則 [${primaryName || '未知'}] 建議偏多操作。`);
-    else if (action === 'WATCH') parts.push(`主導規則 [${primaryName || '未知'}] 顯示指標轉強，建議加入觀察名單。`);
+    else if (action === 'WATCH') parts.push(primaryName ? `主導規則 [${primaryName}] 顯示指標轉強，建議加入觀察。` : '目前無明確交易訊號，維持觀察。');
     else parts.push('目前無明確交易訊號。');
 
     if (buys > 0 && exits > 0) parts.push(`警告：系統偵測到 ${buys} 項偏多與 ${exits} 項偏空規則衝突。`);

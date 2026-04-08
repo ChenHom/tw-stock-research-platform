@@ -1,7 +1,9 @@
 import 'dotenv/config';
+import { randomUUID } from 'node:crypto';
 import { bootstrap } from '../bootstrap.js';
 import { toTaipeiDateString } from '../../core/utils/date.js';
 import { CandidateResearchReportGenerator } from '../../modules/reporting/CandidateResearchReportGenerator.js';
+import type { CandidateResearchResultRecord } from '../../core/contracts/storage.js';
 
 async function main() {
   const tradeDate = process.argv.find(a => !a.startsWith('-') && /^\d{4}-\d{2}-\d{2}$/.test(a)) || toTaipeiDateString();
@@ -9,67 +11,103 @@ async function main() {
   const isMock = process.argv.includes('--mock');
   const forcedStocks = process.argv.find(a => a.startsWith('--stocks='))?.split('=')[1]?.split(',') || null;
 
-  console.log(`[CLI] 啟動候選池研究任務 | 日期: ${tradeDate} | 取 Top: ${topN} ${isMock ? '(MOCK 模式)' : ''}`);
-  if (forcedStocks) console.log(`[CLI] 強制研究指定股票: ${forcedStocks.join(', ')}`);
-
   const app = bootstrap();
   const reportGenerator = new CandidateResearchReportGenerator();
+  const runId = randomUUID();
 
-  // ... (Mock provider setup unchanged) ...
+  console.log(`[CLI] 啟動任務: ${runId} | 日期: ${tradeDate}`);
 
-  // 1. 設定預算快照
+  if (isMock) {
+    class InternalMockProvider {
+      public providerName = 'mock';
+      constructor(private mockData: any) {}
+      supports(dataset: string) { return true; }
+      async fetch(query: any) {
+        return { 
+          data: this.mockData[query.dataset] || [], 
+          source: { provider: 'mock', dataset: query.dataset, fetchedAt: new Date().toISOString(), asOf: tradeDate } 
+        };
+      }
+    }
+    const mockData = {
+      'market_daily_latest': [{ stockId: '2330', Code: '2330', OpeningPrice: '600', HighestPrice: '610', LowestPrice: '595', ClosingPrice: '605', TradeVolume: '1000', TradeValue: '1000000', Transaction: '100' }],
+      'daily_valuation': [{ stockId: '2330', Code: '2330', PEratio: '12', PBratio: '2.5', DividendYield: '3' }],
+      'month_revenue': [{ stockId: '2330', revenueYoy: 0.3, yearMonth: '2024-03' }],
+      'institutional_flow': [{ stockId: '2330', totalNet: 1000 }]
+    };
+    const mockProvider = new InternalMockProvider(mockData);
+    (app.providerRegistry as any).providers = [(mockProvider as any)];
+  }
+
   const budget = app.budgetGuard.evaluate('finmind', 0, 600);
 
   try {
-    let results;
+    // 1. 初始化研究紀錄 (關鍵修正：不論模式都必須有 Run 紀錄)
+    await app.repositories.researchRuns.save({
+      runId,
+      tradeDate,
+      criteria: forcedStocks ? { forced: forcedStocks } : { minVolume: 2000, maxPe: 25 },
+      topN: forcedStocks ? forcedStocks.length : topN,
+      accountTier: 'free',
+      status: 'running',
+      startedAt: new Date()
+    });
+
+    let results = [];
+
     if (forcedStocks) {
-      // 若有指定股票，略過 Screening 直接對這些股票進行深度研究
-      console.log(`[CLI] 略過初篩，直接對 ${forcedStocks.length} 檔股票執行 Pipeline...`);
-      results = [];
+      console.log(`[CLI] 強制研究模式: ${forcedStocks.join(', ')}`);
       for (const stockId of forcedStocks) {
         try {
           const research = await app.researchPipeline.run({
-            stockId,
-            tradeDate,
-            accountTier: 'free',
-            useCache: true
+            stockId, tradeDate, accountTier: 'free', useCache: true
           }, budget);
-          results.push({
-            stockId,
-            preliminaryScore: 100, // 強制進入研究的基準分
-            research
-          });
+          results.push({ stockId, preliminaryScore: 0, research }); // 假分數歸 0
         } catch (e) {
           console.error(`[CLI] 深度研究失敗 (${stockId}):`, e);
         }
       }
     } else {
-      // 2. 執行全流程 (篩選 + 批次研究)
-      results = await app.candidateResearchService.run({
-        criteria: {
-          minVolume: 2000,
-          maxPe: 25
-        },
-        tradeDate,
-        topN,
-        accountTier: 'free'
-      }, budget);
+      // 使用協調器執行 (原本就具備 UUID 內部邏輯，但為了統一改手動呼叫)
+      // 注意：這裡為了確保 runId 一致，直接調用內層組件而非 Service.run
+      const candidates = await app.screeningService.screen({ minVolume: 2000, maxPe: 25 });
+      const topCandidates = candidates.slice(0, topN);
+      for (const cand of topCandidates) {
+        const research = await app.researchPipeline.run({
+          stockId: cand.stockId, tradeDate, accountTier: 'free', useCache: true
+        }, budget);
+        results.push({ stockId: cand.stockId, preliminaryScore: cand.preliminaryScore, research });
+      }
     }
 
-    if (results.length === 0) {
-      console.warn('[CLI] 找不到符合條件的候選股。');
-      process.exit(0);
-    }
+    // 2. 儲存結果並更新狀態 (確保資料鏈串接)
+    const records: CandidateResearchResultRecord[] = results.map(r => ({
+      runId,
+      stockId: r.stockId,
+      preliminaryScore: r.preliminaryScore,
+      researchTotalScore: r.research.featureSnapshot.payload.totalScore,
+      finalAction: r.research.finalDecision.action,
+      confidence: r.research.finalDecision.confidence,
+      summary: r.research.finalDecision.summary,
+      ruleResults: r.research.ruleResults,
+      thesisStatus: r.research.thesisStatus
+    }));
 
-    // 3. 產出報告
-    console.log(`\n[CLI] 研究任務完成，結果已儲存至系統 (${process.env.STORAGE_TYPE || 'in-memory'})。`);
+    await app.repositories.researchRuns.saveResults(records);
+    await app.repositories.researchRuns.updateStatus(runId, 'completed');
+
+    console.log(`\n[CLI] 研究任務完成。RunId: ${runId}`);
     console.log('\n--- 候選池研究報表 ---');
-    const markdownReport = reportGenerator.buildMarkdownTable(results);
-    console.log(markdownReport);
+    console.log(reportGenerator.buildRunResultTable(results.map(r => ({
+      ...r.research,
+      preliminaryScore: r.preliminaryScore
+    })), tradeDate));
+
     process.exit(0);
 
   } catch (error) {
     console.error('[CLI] 任務執行失敗:', error);
+    await app.repositories.researchRuns.updateStatus(runId, 'failed');
     process.exit(1);
   }
 }

@@ -9,8 +9,7 @@ export type RuleAction =
   | 'SELL'
   | 'EXIT'
   | 'BLOCK'
-  | 'WATCH'
-  | 'NO_ACTION';
+  | 'WATCH';
 
 export type RuleCategory = 'risk' | 'entry' | 'exit' | 'filter' | 'thesis';
 
