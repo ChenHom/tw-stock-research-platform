@@ -26,18 +26,22 @@ test('PerformanceReportGenerator: 應正確格式化 Markdown 報表', (t) => {
 
   // 驗證標題與關鍵數據
   assert.ok(report.includes('# 研究任務成效分析報告'));
-  assert.ok(report.includes('70.0%'));
-  assert.ok(report.includes('2.50%'));
+  assert.ok(report.includes('70.0%'), '應包含整體準確率');
+  assert.ok(report.includes('2.50%'), '應包含平均報酬率');
   
   // 驗證動作拆解表格
   assert.ok(report.includes('## 2. 決策動作拆解'));
-  assert.ok(report.includes('BUY'));
+  assert.ok(report.includes('**BUY**'));
   assert.ok(report.includes('80.0%'));
+  assert.ok(report.includes('4.00%'), '應正確格式化 0.04 為 4.00%');
   
   // 驗證規則拆解表格
   assert.ok(report.includes('## 3. 判斷規則 (Rules) 成效'));
   assert.ok(report.includes('`rule-1`'));
+  assert.ok(report.includes('5.00%'), '規則報酬應正確格式化');
   
   // 驗證論點拆解表格
   assert.ok(report.includes('## 4. 論點狀態 (Thesis) 成效'));
+  assert.ok(report.includes('**thesis_met**'));
+  assert.ok(report.includes('75.0%'));
 });
