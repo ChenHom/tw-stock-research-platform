@@ -1,90 +1,300 @@
-# TW Stock Research Platform (台股研究決策平台)
+# TW Stock Research Platform（台股研究決策平台）
 
-![License](https://img.shields.io/badge/license-MIT-green)
-![Node](https://img.shields.io/badge/node-%3E%3D20-blue)
-![TypeScript](https://img.shields.io/badge/typescript-5.x-blue)
+以公開資訊為核心的台股研究平台。  
+目標不是喊單，而是把台股研究流程拆成可追蹤、可驗證、可回顧的完整閉環：
 
-這是一個以**數據驅動 (Data-Driven)**、**證據連結 (Evidence-Linked)** 為核心的台股研究平台。目標是建立一套嚴謹的自動化研究流程，從全市場篩選到深度特徵評估，並最終追蹤決策的真實成效。
-
-## 核心理念
-
-1.  **官方資料優先 (Official First)**：全市場快照優先採用 TWSE OpenAPI，確保資料權威性。
-2.  **證據連結論點 (Evidence-Linked Thesis)**：所有的投資論點必須綁定當時的數據快照 (Snapshot)，確保研究「事後可回溯、可驗證」。
-3.  **績效反饋閉環 (Performance Feedback Loop)**：自動回填 T+N 報酬率，透過真實勝率修正規則引擎與投資邏輯。
-4.  **階層感知路由 (Tier-aware Routing)**：根據 API 配額自動切換抓取模式與資料源，極大化利用 FinMind 等第三方資源。
+1. 先篩出值得看的股票
+2. 評估基本面、營收、籌碼、交易位置、新聞事件
+3. 輸出 `WATCH / BUY / ADD / HOLD / TRIM / SELL / EXIT / BLOCK`
+4. 回填後續表現，檢查規則、論點與決策是否真的有效
 
 ---
 
-## 快速啟動
+## 目前已完成的主流程
 
-### 1. 環境準備
-確保您的環境已安裝 Docker 與 Node.js。
+系統目前已具備這條完整鏈：
 
+1. **候選池篩選**：`run-candidates`
+2. **單檔研究**：`run-research`
+3. **研究留痕與歷史查詢**：`run-history`
+4. **成效回填**：`run-outcomes`
+5. **績效分析**：`run-performance`
+6. **優化洞察**：`run-insights`
+
+這代表目前已可做 **MVP 流程測試**。
+
+---
+
+## 核心原則
+
+### 1. 先資料，後結論
+先抓結構化資料，再做特徵、規則、決策。  
+不先看新聞標題再補理由。
+
+### 2. 官方優先
+- **TWSE**：全市場最新快照、估值底座
+- **FinMind**：單檔歷史、月營收、財報、法人、融資融券、新聞
+- **新聞**：只做事件加成，不作主判斷
+
+### 3. 條件決策，不猜日期
+進出場不是喊某一天，而是看條件是否成立。
+
+### 4. 研究可回溯
+研究結果、任務歷史、後續報酬、規則成效、論點狀態都可追蹤。
+
+---
+
+## 資料分工
+
+### TWSE
+用途：
+- 全市場
+- 官方最新資料
+- 當日 market snapshot
+- 當日估值底座
+
+對應 dataset：
+- `market_daily_latest`
+- `daily_valuation`
+
+### FinMind
+用途：
+- 單檔歷史價量
+- 月營收
+- 財報
+- 法人買賣
+- 融資融券
+- 新聞
+
+對應 dataset：
+- `market_daily_history`
+- `month_revenue`
+- `financial_statements`
+- `institutional_flow`
+- `margin_short`
+- `stock_news`
+
+---
+
+## 系統流程
+
+### 1. Screening
+先從全市場初篩 candidate pool。
+
+### 2. Research
+對候選股做單檔深挖，抓歷史、籌碼、財報、營收、新聞。
+
+### 3. Features
+把原始資料轉成研究特徵：
+- 基本面：`epsTtm`、`roe`、`grossMarginGrowth`、`operatingMarginGrowth`
+- 營收動能：`revenueYoy`、`revenueAcceleration`
+- 籌碼風險：`institutionalNet`、`marginChange`、`marginRiskScore`
+- 交易位置：`ma20`、`bias20`、`volumeRatio20`、`alphaVs0050`
+- 事件加成：`eventScore`
+
+### 4. Decision
+規則引擎 + thesis + decision composer 輸出最終動作。
+
+### 5. Outcome
+回填 T+1 / T+5 / T+20 表現。
+
+### 6. Performance
+統計：
+- 整體勝率
+- 平均報酬
+- action breakdown
+- rule breakdown
+- thesis breakdown
+
+### 7. Insights
+根據績效資料產出優化建議：
+- 哪些 rule 應保留
+- 哪些 rule 應降權
+- 哪種 thesis 狀態易失效
+- 哪種 action 表現差
+
+---
+
+## 專案結構
+
+```text
+src/
+├─ app/
+│  ├─ commands/          # CLI 入口
+│  ├─ services/          # 研究、查詢、成效、洞察服務
+│  └─ bootstrap.ts       # 組裝入口
+├─ core/
+│  ├─ contracts/         # repository / storage / provider 契約
+│  ├─ types/             # 核心型別
+│  └─ utils/             # 日期與共用工具
+├─ modules/
+│  ├─ budget/            # 配額與預算控制
+│  ├─ cache/             # In-memory / Redis cache
+│  ├─ features/          # FeatureBuilder
+│  ├─ providers/         # TWSE / FinMind provider
+│  ├─ reporting/         # Markdown / JSON / 分析報表
+│  ├─ research/          # Thesis / DecisionComposer
+│  ├─ router/            # Dataset Router
+│  ├─ rules/             # RuleEngine 與規則
+│  └─ storage/           # In-memory / PostgreSQL repository
+tests/                   # 單元與整合測試
+database/migrations/     # SQL migration
+```
+
+---
+
+## 環境與執行模式
+
+### 快取層
+可用環境變數切換：
+- `CACHE_TYPE=in-memory`
+- `CACHE_TYPE=redis`
+
+預設為：
+- `in-memory`
+
+### 儲存層
+可用環境變數切換：
+- `STORAGE_TYPE=in-memory`
+- `STORAGE_TYPE=postgres`
+
+預設為：
+- `in-memory`
+
+---
+
+## 安裝與啟動
+
+### 1. 安裝依賴
 ```bash
-# 複製環境變數範本並填入您的 FINMIND_API_TOKEN
-cp .env.example .env
-
-# 啟動基礎設施 (PostgreSQL 16 & Redis 7)
-docker-compose up -d
-
-# 安裝依賴並套用資料庫遷移
 npm install
+```
+
+### 2. 型別與測試
+```bash
+npm run validate
+```
+
+### 3. 套用資料庫 migration
+若要走 PostgreSQL：
+```bash
 npm run db:up
 ```
 
-### 2. 執行研究任務 (CLI)
-
-系統提供完整的研究生命週期指令：
-
+### 4. 若要回滾 migration
 ```bash
-# A. 執行候選池篩選與批次研究 (初篩 -> 深挖 -> 產出 Markdown 報告)
-npm run candidates -- 2024-04-03 10
-
-# B. 對特定單一股票進行深度研究
-npm run research -- 2330 2024-04-03
-
-# C. 回填歷史研究任務的後續表現 (T+1, T+5, T+20 報酬率)
-npm run outcomes latest
-
-# D. 查詢研究任務的真實績效統計 (勝率、平均報酬)
-npm run performance latest
-
-# E. 查閱歷史研究紀錄清單
-npm run run-history date 2024-04-03
+npm run db:down
 ```
 
 ---
 
-## 系統架構
+## CLI 指令
 
-### 研究漏斗流程
-1.  **Screening (篩選)**：利用 TWSE Bulk 資料進行量價、估值、營收動能初篩。
-2.  **Research (研究)**：針對候選股抓取 30 日歷史、籌碼流向、詳細財報與新聞。
-3.  **Features (特徵)**：三層特徵引擎（基本面趨勢、籌碼風險、交易位置）。
-4.  **Decision (決策)**：外掛式規則引擎配合 Decision Composer 產出行動建議。
-5.  **Outcome (追蹤)**：回填後續行情，產出績效分析報告。
+### 單檔研究
+```bash
+npm run research -- 2330 2024-04-03
+```
 
-### 目錄總覽
-- `src/core/`：核心契約 (Contracts) 與標準型別。
-- `src/modules/providers/`：TWSE 與 FinMind 資料擷取層。
-- `src/modules/features/`：特徵工程與篩選服務。
-- `src/modules/rules/`：註冊制的外掛規則引擎。
-- `src/modules/storage/`：支援版本化與 Lineage 的 PostgreSQL 儲存層。
-- `src/modules/cache/`：基於資料更新節奏的 Redis 熱快取。
+### 候選池研究
+預設抓今天、Top 5。也可指定日期與數量。
+```bash
+npm run candidates
+npm run candidates -- 2024-04-03 10
+npm run candidates -- --mock
+```
+
+### 查詢歷史研究任務
+```bash
+npm run run-history latest
+npm run run-history date 2024-04-03
+npm run run-history detail <runId>
+```
+
+### 回填後續成效
+```bash
+npm run outcomes latest
+npm run outcomes <runId>
+```
+
+### 產出績效分析
+```bash
+npm run performance latest
+npm run performance <runId>
+```
+
+### 產出優化洞察
+```bash
+npm run insights latest
+npm run insights <runId>
+```
+
+---
+
+## MVP 測試建議流程
+
+目前最適合做的是 **MVP 流程測試**，不是直接正式上線驗收。
+
+### In-memory 路徑
+```bash
+npm run candidates
+npm run run-history latest
+npm run outcomes latest
+npm run performance latest
+npm run insights latest
+```
+
+### PostgreSQL 路徑
+先設定：
+```bash
+export STORAGE_TYPE=postgres
+npm run db:up
+```
+
+再跑：
+```bash
+npm run candidates
+npm run run-history latest
+npm run outcomes latest
+npm run performance latest
+npm run insights latest
+```
+
+### 測試時要確認
+- 候選股能正常產出
+- 單檔研究能正常輸出決策
+- run 歷史能查回
+- outcome 能回填
+- performance 能統計
+- insights 能產出可讀的建議
+- 沒資料時 CLI 不會直接炸掉
 
 ---
 
 ## 技術棧
-- **Runtime**: Node.js (ESM 模式)
-- **Language**: TypeScript
-- **Database**: PostgreSQL 16
-- **Cache**: Redis 7
-- **Test**: Node.js Native Test Runner (ts-node/esm)
 
-## 品質保證
-專案具備嚴格的 Pre-commit Hook，每次提交前均會執行：
-- `npm run lint`：型別與語法檢查。
-- `npm test`：執行 23 項核心單元與整合測試。
+- **Runtime**：Node.js（ESM）
+- **Language**：TypeScript
+- **Database**：PostgreSQL
+- **Cache**：Redis / In-memory
+- **Test**：Node.js Native Test Runner + ts-node/esm
 
 ---
-*本專案為研究工具，不構成任何投資建議。*
+
+## 目前定位
+
+這個專案目前不是單純研究原型，已經進到：
+
+**候選池研究 + 歷史留痕 + 成效回填 + 績效分析 + 優化洞察**
+
+也就是可以開始做：
+- MVP 流程測試
+- 端到端 smoke test
+- in-memory / PostgreSQL 路徑驗證
+
+---
+
+## 注意事項
+
+- 本專案是研究工具，不構成任何投資建議。
+- 新聞僅作事件加成，不應取代基本面與籌碼資料。
+- 若要走 PostgreSQL / Redis，需先準備對應服務與連線設定。
