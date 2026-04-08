@@ -121,7 +121,7 @@ export function bootstrap(overrides?: BootstrapOverrides) {
 
   const researchRunQueryService = new ResearchRunQueryService(researchRunRepo);
   const researchOutcomeService = new ResearchOutcomeService(researchOutcomeRepo, researchRunRepo, providerRegistry);
-  const researchPerformanceService = new ResearchPerformanceService(researchOutcomeRepo);
+  const researchPerformanceService = new ResearchPerformanceService(researchOutcomeRepo, researchRunRepo);
 
   return {
     cache,

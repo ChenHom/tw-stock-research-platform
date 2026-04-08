@@ -100,7 +100,9 @@ export class PostgresResearchRunRepository implements ResearchRunRepositoryContr
         research_total_score: r.researchTotalScore, 
         final_action: r.finalAction,
         confidence: r.confidence,
-        summary: r.summary
+        summary: r.summary,
+        rule_results: this.sql.json(r.ruleResults),
+        thesis_status: r.thesisStatus
       })))}
     `;
   }
@@ -141,7 +143,7 @@ export class PostgresResearchRunRepository implements ResearchRunRepositoryContr
     const rows = await this.sql`
       SELECT run_id as "runId", stock_id as "stockId", preliminary_score as "preliminaryScore", 
              research_total_score as "researchTotalScore", final_action as "finalAction", 
-             confidence, summary
+             confidence, summary, rule_results as "ruleResults", thesis_status as "thesisStatus"
       FROM candidate_research_results
       WHERE run_id = ${runId}
       ORDER BY research_total_score DESC

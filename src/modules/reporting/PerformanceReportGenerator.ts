@@ -1,10 +1,16 @@
-import type { PerformanceStats, ActionBreakdown } from '../../app/services/ResearchPerformanceService.js';
+import type { PerformanceStats, ActionBreakdown, RuleBreakdown, ThesisBreakdown } from '../../app/services/ResearchPerformanceService.js';
 
 export class PerformanceReportGenerator {
   /**
    * 產出成效總覽報告
    */
-  buildPerformanceMarkdown(runId: string, stats: PerformanceStats, breakdown: ActionBreakdown[]): string {
+  buildPerformanceMarkdown(
+    runId: string, 
+    stats: PerformanceStats, 
+    actionBreakdown: ActionBreakdown[],
+    ruleBreakdown: RuleBreakdown[],
+    thesisBreakdown: ThesisBreakdown[]
+  ): string {
     const summary = [
       `# 研究任務成效分析報告`,
       `任務 ID: ${runId}`,
@@ -18,25 +24,52 @@ export class PerformanceReportGenerator {
       ''
     ];
 
-    const breakdownHeader = [
+    const actionHeader = [
       `## 2. 決策動作拆解`,
       '| 動作 | 樣本數 | 準確率 | 平均報酬 (5D) |',
       '| :--- | :---: | :---: | :---: |'
     ];
-
-    const breakdownRows = breakdown.map(b => {
+    const actionRows = actionBreakdown.map(b => {
       const acc = (b.accuracy * 100).toFixed(1) + '%';
       const ret = (b.avgReturn * 100).toFixed(2) + '%';
       return `| **${b.action}** | ${b.count} | ${acc} | ${ret} |`;
     });
 
+    const ruleHeader = [
+      '',
+      `## 3. 判斷規則 (Rules) 成效`,
+      '| 規則 ID | 觸發次數 | 準確率 | 平均報酬 (5D) |',
+      '| :--- | :---: | :---: | :---: |'
+    ];
+    const ruleRows = ruleBreakdown.map(b => {
+      const acc = (b.accuracy * 100).toFixed(1) + '%';
+      const ret = (b.avgReturn * 100).toFixed(2) + '%';
+      return `| \`${b.ruleId}\` | ${b.hitCount} | ${acc} | ${ret} |`;
+    });
+
+    const thesisHeader = [
+      '',
+      `## 4. 論點狀態 (Thesis) 成效`,
+      '| 狀態 | 樣本數 | 準確率 | 平均報酬 (5D) |',
+      '| :--- | :---: | :---: | :---: |'
+    ];
+    const thesisRows = thesisBreakdown.map(b => {
+      const acc = (b.accuracy * 100).toFixed(1) + '%';
+      const ret = (b.avgReturn * 100).toFixed(2) + '%';
+      return `| **${b.status}** | ${b.count} | ${acc} | ${ret} |`;
+    });
+
     return [
       ...summary,
-      ...breakdownHeader,
-      ...breakdownRows,
+      ...actionHeader,
+      ...actionRows,
+      ...ruleHeader,
+      ...ruleRows,
+      ...thesisHeader,
+      ...thesisRows,
       '',
       '---',
-      '*註：準確率計算基準為「動作與後續 5 日股價走勢方向是否一致」。*'
+      '*註：準確率計算基準為「當該規則/論點達成時，後續 5 日股價走勢方向與動作是否一致」。*'
     ].join('\n');
   }
 }

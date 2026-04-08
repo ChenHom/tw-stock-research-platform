@@ -26,7 +26,9 @@ test('ResearchRunQueryService: 應能正確聚合與查回研究任務摘要', a
     researchTotalScore: 85,
     finalAction: 'BUY',
     confidence: 0.9,
-    summary: 'OK'
+    summary: 'OK',
+    ruleResults: [],
+    thesisStatus: 'none'
   }]);
 
   // 2. 測試 getLatestRunSummary

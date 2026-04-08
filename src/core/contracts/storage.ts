@@ -18,6 +18,8 @@ export interface CandidateResearchResultRecord {
   finalAction: string;
   confidence: number;
   summary: string;
+  ruleResults: any[];  // 儲存規則判定細節 (P0: 分析用)
+  thesisStatus: string; // 儲存論點狀態 (P0: 分析用)
 }
 
 export interface ResearchOutcome {

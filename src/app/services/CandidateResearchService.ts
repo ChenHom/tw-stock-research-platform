@@ -94,7 +94,9 @@ export class CandidateResearchService {
         researchTotalScore: r.research.featureSnapshot.payload.totalScore,
         finalAction: r.research.finalDecision.action,
         confidence: r.research.finalDecision.confidence,
-        summary: r.research.finalDecision.summary
+        summary: r.research.finalDecision.summary,
+        ruleResults: r.research.ruleResults, // 補上規則細節
+        thesisStatus: r.research.thesisStatus // 補上論點狀態
       }));
 
       await this.researchRunRepo.saveResults(records);

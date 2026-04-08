@@ -41,7 +41,9 @@ test('ResearchOutcomeService (可信度驗證): 應能根據任務 tradeDate 準
     researchTotalScore: 1, // 確保非 0 以觸發計算
     finalAction: 'BUY',
     confidence: 1,
-    summary: 'TEST'
+    summary: 'TEST',
+    ruleResults: [],
+    thesisStatus: 'none'
   }]);
 
   // 3. 執行成效回填

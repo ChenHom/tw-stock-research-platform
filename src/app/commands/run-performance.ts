@@ -26,18 +26,27 @@ async function main() {
 
     console.log(`[CLI] 正在分析任務績效: ${runId}`);
     
-    // 獲取整體統計
-    const stats = await perfService.getRunPerformance(runId);
-    // 獲取動作拆解
-    const breakdown = await perfService.getActionBreakdown(runId);
+    // 1. 獲取多維度分析數據
+    const [stats, actionBreakdown, ruleBreakdown, thesisBreakdown] = await Promise.all([
+      perfService.getRunPerformance(runId),
+      perfService.getActionBreakdown(runId),
+      perfService.getRuleBreakdown(runId),
+      perfService.getThesisBreakdown(runId)
+    ]);
 
-    if (!stats || breakdown.length === 0) {
+    if (!stats || actionBreakdown.length === 0) {
       console.log('尚無該任務的成效數據 (可能尚未執行回填任務: npm run outcomes latest)。');
       return;
     }
 
-    console.log('\n--- 執行深度績效分析 ---\n');
-    const mdReport = reportGenerator.buildPerformanceMarkdown(runId, stats, breakdown);
+    console.log('\n--- 執行深度績效分析 (包含 Rules & Thesis) ---\n');
+    const mdReport = reportGenerator.buildPerformanceMarkdown(
+      runId, 
+      stats, 
+      actionBreakdown,
+      ruleBreakdown,
+      thesisBreakdown
+    );
     console.log(mdReport);
 
   } catch (error) {
