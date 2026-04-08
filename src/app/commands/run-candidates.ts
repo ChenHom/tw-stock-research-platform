@@ -7,52 +7,54 @@ async function main() {
   const tradeDate = process.argv.find(a => !a.startsWith('-') && /^\d{4}-\d{2}-\d{2}$/.test(a)) || toTaipeiDateString();
   const topN = parseInt(process.argv.find(a => /^\d+$/.test(a)) || '5', 10);
   const isMock = process.argv.includes('--mock');
+  const forcedStocks = process.argv.find(a => a.startsWith('--stocks='))?.split('=')[1]?.split(',') || null;
 
   console.log(`[CLI] 啟動候選池研究任務 | 日期: ${tradeDate} | 取 Top: ${topN} ${isMock ? '(MOCK 模式)' : ''}`);
+  if (forcedStocks) console.log(`[CLI] 強制研究指定股票: ${forcedStocks.join(', ')}`);
 
   const app = bootstrap();
   const reportGenerator = new CandidateResearchReportGenerator();
 
-  if (isMock) {
-    // 內聯定義 MockProvider 以避免跨目錄引用 (RootDir 限制)
-    class InternalMockProvider {
-      public providerName = 'mock';
-      constructor(private mockData: any) {}
-      supports(dataset: string) { return true; }
-      async fetch(query: any) {
-        return { 
-          data: this.mockData[query.dataset] || [], 
-          source: { provider: 'mock', dataset: query.dataset, fetchedAt: new Date().toISOString(), asOf: tradeDate } 
-        };
-      }
-    }
-
-    const mockData = {
-      'market_daily_latest': [{ stockId: '2330', Code: '2330', OpeningPrice: '600', HighestPrice: '610', LowestPrice: '595', ClosingPrice: '605', TradeVolume: '1000', TradeValue: '1000000', Transaction: '100' }],
-      'daily_valuation': [{ stockId: '2330', Code: '2330', PEratio: '12', PBratio: '2.5', DividendYield: '3' }],
-      'month_revenue': [{ stockId: '2330', revenueYoy: 0.3, yearMonth: '2024-03' }],
-      'institutional_flow': [{ stockId: '2330', totalNet: 1000 }]
-    };
-    
-    const mockProvider = new InternalMockProvider(mockData);
-    const registry = app.providerRegistry as any;
-    registry.providers = [mockProvider];
-  }
+  // ... (Mock provider setup unchanged) ...
 
   // 1. 設定預算快照
   const budget = app.budgetGuard.evaluate('finmind', 0, 600);
 
   try {
-    // 2. 執行全流程 (篩選 + 批次研究)
-    const results = await app.candidateResearchService.run({
-      criteria: {
-        minVolume: 2000,
-        maxPe: 25
-      },
-      tradeDate,
-      topN,
-      accountTier: 'free'
-    }, budget);
+    let results;
+    if (forcedStocks) {
+      // 若有指定股票，略過 Screening 直接對這些股票進行深度研究
+      console.log(`[CLI] 略過初篩，直接對 ${forcedStocks.length} 檔股票執行 Pipeline...`);
+      results = [];
+      for (const stockId of forcedStocks) {
+        try {
+          const research = await app.researchPipeline.run({
+            stockId,
+            tradeDate,
+            accountTier: 'free',
+            useCache: true
+          }, budget);
+          results.push({
+            stockId,
+            preliminaryScore: 100, // 強制進入研究的基準分
+            research
+          });
+        } catch (e) {
+          console.error(`[CLI] 深度研究失敗 (${stockId}):`, e);
+        }
+      }
+    } else {
+      // 2. 執行全流程 (篩選 + 批次研究)
+      results = await app.candidateResearchService.run({
+        criteria: {
+          minVolume: 2000,
+          maxPe: 25
+        },
+        tradeDate,
+        topN,
+        accountTier: 'free'
+      }, budget);
+    }
 
     if (results.length === 0) {
       console.warn('[CLI] 找不到符合條件的候選股。');

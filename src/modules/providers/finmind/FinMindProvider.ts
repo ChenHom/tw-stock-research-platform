@@ -69,13 +69,26 @@ export class FinMindProvider implements DataProvider<
 
     const params = new URLSearchParams();
     params.append('dataset', finmindDataset);
+    
+    // 根據規格：大部分使用 data_id
     if (query.stockId) params.append('data_id', query.stockId);
-    if (query.startDate) params.append('start_date', query.startDate);
-    if (query.endDate) params.append('end_date', query.endDate);
-    if (this.token) params.append('token', this.token);
+    
+    // 根據規格：新聞 (TaiwanStockNews) 不支援 end_date 且建議單日查詢
+    if (dataset === 'stock_news') {
+      if (query.startDate) params.append('start_date', query.startDate.trim());
+    } else {
+      if (query.startDate) params.append('start_date', query.startDate.trim());
+      if (query.endDate) params.append('end_date', query.endDate.trim());
+    }
 
+    const finalUrl = `${this.baseUrl}?${params.toString()}`;
     try {
-      const response = await fetch(`${this.baseUrl}?${params.toString()}`);
+      const headers: Record<string, string> = {};
+      if (this.token && this.token !== 'undefined') {
+        headers['Authorization'] = `Bearer ${this.token}`;
+      }
+
+      const response = await fetch(finalUrl, { headers });
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const json = await response.json() as { data: any[] };
