@@ -1,48 +1,29 @@
-# 實作計畫 (Implementation Plan)
+# 🗓 實作進度計畫 (Implementation Plan)
 
-## Phase 0 - Scaffold & Core Contract (Completed)
-- [x] 目錄結構與模組分層
-- [x] 資料溯源介面 (SourceMetadata)
-- [x] 外掛式規則引擎介面 (BaseRule / RuleRegistry)
-- [x] 論點版本化與證據連結機制
-- [x] 決策合成層 (Decision Composer)
-- [x] PostgreSQL 版本化 Schema (Lineage/Snapshots)
-- [x] 預算預估與成本模型 (Cost Model)
-- [x] 核心單元測試 (tests/core-modules.test.ts)
-- [x] 資料庫遷移管理系統 (MigrationManager)
-- [x] 節奏驅動快取系統 (CacheStore / TTL Policy)
+## 第一階段：核心框架與 Provider (已完成 ✅)
+- [x] 資料 Provider 抽象層與 TWSE/FinMind 對接。
+- [x] 特徵構建與規則引擎初步實作。
+- [x] CLI 研究指令雛形。
 
-## Phase 1 - Data Providers (Completed)
-- [x] **TwseOpenApiProvider** (實作 fetch + 快取接入)
-- [x] **FinMindProvider** (實作 fetch + 快取接入 + Token 驗證)
-- [ ] RssNewsProvider
-- [ ] Official backfill adapters (MOPS/TAIFEX)
+## 第二階段：候選池與持久化 (已完成 ✅)
+- [x] 全市場初篩服務 (ScreeningService)。
+- [x] 候選池協調器 (CandidateResearchService)。
+- [x] PostgreSQL 儲存層與 Migration 系統。
+- [x] 歷史任務查詢功能。
 
-## Phase 2 - Persistence & Storage (Completed)
-- [x] PostgreSQL repositories (支援 versioning 讀寫)
-- [x] **Research Run 留痕** (StartedAt/CompletedAt/Results)
-- [x] **ResearchRunQueryService** (歷史任務回溯查詢)
-- [x] 資料庫遷移管理系統 (MigrationManager)
-- [x] 儲存方案靈活切換 (In-Memory / Postgres)
+## 第三階段：績效與優化閉環 (已完成 ✅)
+- [x] 成效回填服務 (ResearchOutcomeService)。
+- [x] 績效分析與報表 (PerformanceReportGenerator)。
+- [x] 策略優化洞察引擎 (ResearchInsightsService)。
+- [x] 修正 CLI 懸掛與 Provider 穩定性問題。
 
-## Phase 3 - Feature Layer (Evidence Generation)
-- [x] **FeatureBuilder** 三層架構 (Fundamental, Chip, Technical)
-- [x] **Alpha vs 0050** 真基準計算
-- [x] **新聞事件加成** (具備時間衰減權重)
+## 第四階段：產品化與進階優化 (進行中 🚀)
+- [ ] 支援更多維度的優化建議（如自動調整參數）。
+- [ ] 強化新聞情緒分析與事件加權。
+- [ ] 開發 Web UI 視覺化報表（由 CLI 延伸）。
+- [ ] 支援批次並行研究以提升效能（配合 Budget Guard）。
 
-## Phase 4 - Research & Thesis
-- [x] **Thesis Tracker** 自動狀態評估 (Intact/Broken)
-- [x] **ScreeningService** 候選池動能篩選
-- [ ] Valuation Service (PER Band / Peer Group)
-- [ ] Catalyst Calendar 標準化
-
-## Phase 5 - Rule Implementation (Plugins)
-- [x] **RuleEngine** 分相執行與熔斷機制
-- [x] 基礎風險規則 (Stop loss, Thesis broken)
-- [ ] 策略規則 (Momentum, Value)
-
-## Phase 6 - Outputs & Reporting
-- [x] **CandidateResearchReportGenerator** Markdown 表格綜整
-- [x] **CLI 工具** (run-research / run-candidates)
-- [ ] JSON decision packet for automation
-- [ ] LINE / Mobile summary integration
+## 核心里程碑 (Milestones)
+1. **MVP 1.0**: 實現單檔研究與報表。 (已達成)
+2. **MVP 2.0**: 實現候選池掃描與資料持久化。 (已達成)
+3. **Loop 1.0**: 完成研究-回填-分析-洞察閉環。 (已達成 ✅)

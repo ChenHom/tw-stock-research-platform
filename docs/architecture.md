@@ -1,66 +1,38 @@
-# 架構總覽 (Architecture Overview)
+# 🏛 系統架構說明 (Architecture)
 
-## 1. 設計原則
+本平台採用分層架構，旨在建立一個自動化的「研究 -> 執行 -> 績效回填 -> 策略優化」的完整數據閉環。
 
-### 1.1 官方資料優先 (Official First)
-- 全市場掃描：優先採用 TWSE OpenAPI / 官方 Bulk 資料。
-- 候選股補強：當官方資料缺失時，自動 fallback 至 FinMind。
-- 新聞與線索：僅作為輔助，不作為絕對真值來源。
+## 1. 核心分層
 
-### 1.2 溯源與版本化 (Provenance & Versioning)
-- **資料溯源 (Lineage)**：每一筆資料皆附帶 `SourceMetadata`，記錄原始來源、採用路徑及置信度。
-- **證據連結 (Evidence-linked)**：所有的投資論點 (Thesis) 必須與具體的特徵快照 (Feature Snapshot) 或事件連結，確保研究「事後可回溯」。
-- **凍結狀態**：研究當時看到的數據會被「凍結」在 Snapshot 中，避免資料更新導致論點失效卻無從查證。
+### A. 資料獲取層 (Data Providers)
+- **TWSE Provider**: 負責全市場的最新量價、估值（PE/PB/Yield）Bulk 資料抓取。
+- **FinMind Provider**: 負責深度的歷史資料、營收、法人籌碼、財報及新聞。支援 Free/Backer/Sponsor 不同等級的調度。
 
-### 1.3 預算控管路由 (Budget-aware Routing)
-- 系統自動預估 API 消耗成本 (Cost Model)，並根據帳戶等級實施自動降級或轉向官方免費來源。
+### B. 特徵與篩選層 (Feature & Screening)
+- **ScreeningService**: 產品第一層門檻。利用 TWSE Bulk 資料快速篩選出具備潛力的 Candidate Pool。
+- **FeatureBuilder**: 對單一股票構建多維度特徵（基本面、技術面、籌碼面、Alpha、事件評分）。
 
-### 1.4 決策可解釋性 (Explainable Decisions)
-- 規則引擎採「外掛式設計」，決策合成層 (Decision Composer) 負責彙整規則結果、論點狀態與估值，產出具備摘要理由的決策建議。
+### C. 決策與規則層 (Decision & Rules)
+- **RuleEngine**: 執行過濾 (Filter)、風險 (Risk) 與 策略 (Strategy) 規則。
+- **ThesisTracker**: 追蹤研究論點的生命週期與版本。
+- **DecisionComposer**: 整合規則結果與論點狀態，產出最終的決策動作（BUY/SELL/WATCH）與置信度。
 
-### 1.5 快取策略 (Caching Strategy)
-- **熱快取 (Hot Cache)**：為了減少重複調用外部 API (如 FinMind/TWSE)，系統實作了基於 `CacheStore` 的快取層。
-- **節奏驅動 TTL**：快取過期時間 (TTL) 非固定值，而是根據 Dataset 的官方更新節奏決定（例如：市場價量 4 小時、月營收 24 小時、新聞 15 分鐘）。
-- **快取一致性**：快取鍵包含 `dataset:mode:stockId:date`，確保資料時點與權限等級的正確性。
+### D. 協調與流程層 (Orchestration)
+- **CandidateResearchService**: 串接「初篩」與「深度研究」。實現從全市場掃描到 Top N 個股深度剖析的流程。
+- **ResearchPipelineService**: 單檔研究的核心流水線。
 
-### 1.6 研究任務留痕 (Research Run Tracking)
-- **任務層級紀錄 (Run-level)**：系統不僅儲存單檔研究結果，還記錄每一次候選池研究任務 (Research Run) 的輸入條件、TopN 設定、執行時長與最終清單排名。
-- **執行狀態追蹤**：追蹤任務的生命週期 (`running` -> `completed`/`failed`)，確保批次執行過程中的異常可被偵測。
+### E. 績效與洞察層 (Performance & Insights) - *新增*
+- **ResearchOutcomeService**: 負責推算交易日後的行情，計算 T+1, T+5 報酬。
+- **ResearchPerformanceService**: 提供多維度的績效拆解（按動作、規則、論點狀態）。
+- **ResearchInsightsService**: **策略大腦**。自動分析績效數據，識別低效規則並產出具體的「優化建議（降權/調整）」。
 
----
+## 2. 數據閉環流程 (The Data Loop)
+1. **研究 (Research)**: 篩選候選股並產出決策，記錄於 `research_runs` 與 `candidate_research_results`。
+2. **回填 (Outcome)**: 經過 N 日後，抓取實際行情回填至 `research_outcomes`。
+3. **分析 (Performance)**: 統計勝率與報酬，產出績效報表。
+4. **進化 (Insights)**: 洞察引擎根據回填數據，對策略邏輯提出反饋，指導下一輪規則調整。
 
-## 2. 資料流 (Data Flow)
-
-```text
-[資料來源層] TWSE / FinMind / MOPS / RSS
-        │
-        ▼
-[資料路由層] DatasetRouter (成本預估 + Provider 選擇)
-        │
-        ▼
-[篩選層] ScreeningService ───► [任務層] ResearchRuns (執行留痕)
-        │                                     │
-        ▼                                     ▼
-[資料處理層] FeatureBuilder (特徵工程) ───► [快照層] Feature Snapshots (凍結數據)
-        │                                     │
-        ▼                                     ▼
-[研究層] ThesisTracker (證據連結) ◄───────────┘
-        │
-        ▼
-[決策層] RuleEngine (執行外掛規則) ───► DecisionComposer (最終拍板)
-                                              │
-                                              ▼
-                                     [查詢與輸出層] ResearchRunQuery / Markdown 報告
-```
-
----
-
-## 3. 模組分層 (Layers)
-
-- **Providers**: 對外 API 呼叫、原始欄位正規化、提供溯源 Meta。
-- **Router**: 根據預算、等級與 fallback 規則決定資料路徑。
-- **Features**: 聚合多源資料產出統一特徵，並產出凍結快照。
-- **Research**: 管理 Thesis 版本與證據鏈，計算估值區間。
-- **Rules**: 註冊制的外掛規則，涵蓋風險、策略與個股覆寫。
-- **Reporting**: 產出具備可解釋性的中文化研究報告。
-- **Storage**: 支援版本化與決策日誌的資料持久化。
+## 3. 持久化與基礎設施
+- **PostgreSQL**: 儲存研究留痕、成效與洞察結果。
+- **Redis**: 提供跨 Provider 的資料快取，優化 API 使用額度。
+- **RateBudgetGuard**: 監控並保護 API 配額，自動切換降級模式。
