@@ -48,6 +48,7 @@ async function main() {
       thesisBreakdown
     );
     console.log(mdReport);
+    process.exit(0);
 
   } catch (error) {
     console.error('[CLI] 績效分析失敗:', error);

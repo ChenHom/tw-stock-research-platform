@@ -54,6 +54,7 @@ async function main() {
     console.log('\n--- 執行策略優化分析 ---\n');
     const mdReport = reportGenerator.buildInsightsMarkdown(insights);
     console.log(mdReport);
+    process.exit(0);
 
   } catch (error) {
     console.error('[CLI] 洞察分析失敗:', error);
