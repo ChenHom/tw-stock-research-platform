@@ -40,7 +40,7 @@ export class TwseOpenApiProvider implements DataProvider<MarketDailyRow | Valuat
     if (dataset === 'market_daily_latest') {
       endpoint = '/exchangeReport/STOCK_DAY_ALL';
     } else if (dataset === 'daily_valuation') {
-      endpoint = '/exchangeReport/BWIBYK_ALL';
+      endpoint = '/exchangeReport/BWIBBU_ALL';
     } else {
       throw new Error(`[TWSE] 不支援的資料集: ${dataset}`);
     }

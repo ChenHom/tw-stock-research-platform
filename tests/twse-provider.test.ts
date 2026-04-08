@@ -5,7 +5,7 @@ import { TwseOpenApiProvider } from '../src/modules/providers/twse/TwseOpenApiPr
 test('TwseOpenApiProvider: 應正確處理包含逗號的數字與日期', async (t) => {
   const provider = new TwseOpenApiProvider();
   
-  // 模擬 STOCK_DAY_ALL 資料 (包含逗號)
+  // 模擬真實 STOCK_DAY_ALL 資料結構 (欄位名稱必須與真實 API 一致)
   const mockRawMarket = [
     {
       Code: '2330',
@@ -30,13 +30,13 @@ test('TwseOpenApiProvider: 應正確處理包含逗號的數字與日期', async
 test('TwseOpenApiProvider: 應正確執行估值資料正規化', async (t) => {
   const provider = new TwseOpenApiProvider();
   
-  // 模擬 BWIBYK_ALL 資料
+  // 模擬真實 BWIBBU_ALL 資料結構
   const mockRawValuation = [
     {
       Code: '2330',
       PEratio: '15.50',
-      PBratio: '2.30',
-      DividendYield: '3.50'
+      DividendYield: '3.50',
+      PBratio: '2.30'
     }
   ];
 
