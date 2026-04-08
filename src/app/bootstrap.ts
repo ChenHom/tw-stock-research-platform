@@ -40,11 +40,11 @@ export interface BootstrapOverrides {
 export function bootstrap(overrides?: BootstrapOverrides) {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const redisPort = process.env.REDIS_PORT || '6379';
-  const cacheType = process.env.CACHE_TYPE || 'in-memory';
+  const cacheType = process.env.CACHE_TYPE || 'redis'; // 預設改為 redis
   
   let cache;
   if (cacheType === 'redis') {
-    console.log('[Bootstrap] 使用 Redis 快取層');
+    console.log(`[Bootstrap] 使用 Redis 快取層 (redis://${redisHost}:${redisPort})`);
     cache = new RedisCacheStore({ url: `redis://${redisHost}:${redisPort}` });
   } else {
     console.log('[Bootstrap] 使用 In-Memory 快取層');
@@ -58,7 +58,7 @@ export function bootstrap(overrides?: BootstrapOverrides) {
   const decisionComposer = new DecisionComposer();
   const candidateResearchReportGenerator = new CandidateResearchReportGenerator();
 
-  // 1. 儲存層 (可切換)
+  // 1. 儲存層
   const storageType = process.env.STORAGE_TYPE || 'in-memory';
   let featureSnapshotRepo;
   let finalDecisionRepo;
@@ -81,7 +81,7 @@ export function bootstrap(overrides?: BootstrapOverrides) {
     researchOutcomeRepo = new InMemoryResearchOutcomeRepository();
   }
 
-  // 2. 資料來源層 (支援注入)
+  // 2. 資料來源層
   const defaultProviders = [
     new TwseOpenApiProvider(cache),
     new FinMindProvider(cache)
@@ -101,7 +101,7 @@ export function bootstrap(overrides?: BootstrapOverrides) {
   
   const ruleEngine = new DefaultRuleEngine(ruleRegistry);
 
-  // 5. 核心流程層 (Orchestration)
+  // 5. 核心流程層
   const researchPipeline = new ResearchPipelineService({
     router,
     providerRegistry,

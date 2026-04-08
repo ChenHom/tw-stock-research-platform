@@ -14,13 +14,13 @@ test('ResearchPerformanceService: 應正確計算勝率、動作拆解與規則/
     { 
       runId, stockId: '2330', preliminaryScore: 70, researchTotalScore: 85, 
       finalAction: 'BUY', confidence: 80, summary: 'Good',
-      ruleResults: [{ ruleId: 'rule-tech-ma', status: 'passed' }, { ruleId: 'rule-fund-rev', status: 'passed' }],
+      ruleResults: [{ ruleId: 'rule-tech-ma', triggered: true }, { ruleId: 'rule-fund-rev', triggered: true }],
       thesisStatus: 'thesis_met'
     },
     { 
       runId, stockId: '2317', preliminaryScore: 60, researchTotalScore: 75, 
       finalAction: 'SELL', confidence: 70, summary: 'Bad',
-      ruleResults: [{ ruleId: 'rule-risk-stop', status: 'passed' }],
+      ruleResults: [{ ruleId: 'rule-risk-stop', triggered: true }],
       thesisStatus: 'thesis_broken'
     }
   ]);

@@ -1,93 +1,104 @@
-import type { CandidateResearchResult } from '../../app/services/CandidateResearchService.js';
+import type { RunResearchOutput } from '../../core/contracts/pipeline.js';
 
+export interface CandidateResearchViewModel {
+  stockId: string;
+  preliminaryScore: number | null;
+  totalScore: number;
+  action: string;
+  confidence: number;
+  summary: string;
+  thesisStatus: string;
+}
+
+/**
+ * 候選池研究報表生成器
+ * 負責將研究結果格式化為 Markdown 與 JSON
+ */
 export class CandidateResearchReportGenerator {
   /**
-   * 產出 Markdown 表格報告
+   * 產出 Markdown 表格 (用於 CLI 直接顯示)
    */
-  buildMarkdownTable(results: CandidateResearchResult[]): string {
-    const header = [
-      '| 排名 | 代號 | 初篩分 | 研究總分 | 決策動作 | 置信度 | 摘要理由 |',
-      '| :--- | :--- | :---: | :---: | :---: | :---: | :--- |'
-    ];
-
-    const rows = results.map((r, i) => {
-      const res = r.research;
-      const confidence = (res.finalDecision.confidence * 100).toFixed(0) + '%';
-      return `| ${i + 1} | ${r.stockId} | ${r.preliminaryScore} | ${res.featureSnapshot.payload.totalScore} | **${res.finalDecision.action}** | ${confidence} | ${res.finalDecision.summary} |`;
-    });
-
-    return [
-      '# 候選池研究綜整報告',
-      '',
-      `產出時間: ${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`,
-      `研究數量: ${results.length}`,
-      '',
-      ...header,
-      ...rows,
-      '',
-      '---',
-      '*註：研究總分權重包含基本面(40%)、技術面(25%)、籌碼面(25%)與事件面(10%)。*'
-    ].join('\n');
-  }
-
-  /**
-   * 產出 JSON 摘要 (供系統整合或 Bot 使用)
-   */
-  buildSummaryJson(results: CandidateResearchResult[]) {
-    return results.map(r => ({
+  buildMarkdownTable(results: Array<RunResearchOutput & { preliminaryScore: number | null }>): string {
+    const models: CandidateResearchViewModel[] = results.map(r => ({
       stockId: r.stockId,
-      scores: {
-        preliminary: r.preliminaryScore,
-        research: r.research.featureSnapshot.payload.totalScore
-      },
-      decision: {
-        action: r.research.finalDecision.action,
-        confidence: r.research.finalDecision.confidence
-      },
-      summary: r.research.finalDecision.summary
+      preliminaryScore: r.preliminaryScore,
+      totalScore: r.featureSnapshot.payload.totalScore,
+      action: r.finalDecision.action,
+      confidence: r.finalDecision.confidence,
+      summary: r.finalDecision.summary,
+      thesisStatus: r.thesisStatus
     }));
+    return this.buildMarkdownTableFromModels(models, results[0]?.tradeDate || 'N/A');
   }
 
   /**
-   * 產出特定任務的詳細結果表格 (供讀回歷史使用)
+   * 產出 Markdown 表格 (基於 ViewModel)
    */
-  buildRunResultTable(results: any[], tradeDate: string): string {
-    const header = [
-      '| 排名 | 代號 | 初篩分 | 研究總分 | 決策動作 | 置信度 | 摘要理由 |',
-      '| :--- | :--- | :---: | :---: | :---: | :---: | :--- |'
-    ];
+  buildMarkdownTableFromModels(models: CandidateResearchViewModel[], tradeDate: string): string {
+    if (models.length === 0) return '目前沒有符合的研究結果。';
 
-    const rows = results.map((r, i) => {
-      const confidence = (Number(r.confidence) * 100).toFixed(0) + '%';
-      return `| ${i + 1} | ${r.stockId} | ${r.preliminaryScore} | ${r.researchTotalScore} | **${r.finalAction}** | ${confidence} | ${r.summary} |`;
+    let md = `# 候選池研究綜整報告\n\n`;
+    md += `產出時間: ${new Date().toLocaleString('zh-TW')}\n`;
+    md += `研究數量: ${models.length}\n\n`;
+    md += `| 排名 | 代號 | 初篩分 | 研究總分 | 決策動作 | 置信度 | 摘要理由 |\n`;
+    md += `| :--- | :--- | :---: | :---: | :---: | :---: | :--- |\n`;
+
+    // 依研究總分排序
+    const sorted = [...models].sort((a, b) => b.totalScore - a.totalScore);
+
+    sorted.forEach((m, idx) => {
+      const rank = idx + 1;
+      const preScoreVal = m.preliminaryScore !== null ? Number(m.preliminaryScore) : -1;
+      const preScore = (preScoreVal === -1) ? '-' : preScoreVal.toFixed(0);
+      const totalScore = Number(m.totalScore).toFixed(0);
+      const conf = Math.round(Number(m.confidence) * 100);
+      const actionStr = `**${m.action}**`;
+      
+      md += `| ${rank} | ${m.stockId} | ${preScore} | ${totalScore} | ${actionStr} | ${conf}% | ${m.summary} |\n`;
     });
 
-    return [
-      `# 研究任務詳細結果 (${tradeDate})`,
-      '',
-      ...header,
-      ...rows
-    ].join('\n');
+    md += `\n---\n*註：研究總分權重包含基本面(40%)、技術面(25%)、籌碼面(25%)與事件面(10%)。*\n`;
+    return md;
   }
 
   /**
-   * 產出研究任務歷史列表表格
+   * 產出任務歷史表格
    */
   buildRunHistoryTable(runs: any[]): string {
-    const header = [
-      '| 任務日期 | 執行狀態 | 帳戶等級 | TopN | 任務 ID |',
-      '| :--- | :--- | :---: | :---: | :--- |'
-    ];
-
-    const rows = runs.map(r => {
-      return `| ${r.tradeDate} | ${r.status} | ${r.accountTier} | ${r.topN} | ${r.runId} |`;
+    if (runs.length === 0) return '找不到任何研究任務紀錄。';
+    let md = `| 任務 ID | 交易日期 | 模式 | 狀態 | 開始時間 |\n`;
+    md += `| :--- | :--- | :--- | :---: | :--- |\n`;
+    runs.forEach(r => {
+      md += `| \`${r.runId.slice(0, 8)}\` | ${r.tradeDate} | ${r.accountTier} | ${r.status} | ${new Date(r.startedAt).toLocaleString()} |\n`;
     });
+    return md;
+  }
 
-    return [
-      '# 研究任務歷史清單',
-      '',
-      ...header,
-      ...rows
-    ].join('\n');
+  /**
+   * 產出特定任務的結果表格 (用於 run-history detail 或 latest)
+   */
+  buildRunResultTable(results: any[], tradeDate: string): string {
+    const models: CandidateResearchViewModel[] = results.map(r => ({
+      stockId: r.stockId,
+      preliminaryScore: r.preliminaryScore,
+      totalScore: r.researchTotalScore,
+      action: r.finalAction,
+      confidence: r.confidence,
+      summary: r.summary,
+      thesisStatus: r.thesisStatus
+    }));
+    return this.buildMarkdownTableFromModels(models, tradeDate);
+  }
+
+  /**
+   * 產出摘要 JSON
+   */
+  buildSummaryJson(results: any[]): any {
+    return results.map(r => ({
+      stockId: r.stockId,
+      action: r.finalDecision?.action || r.finalAction,
+      totalScore: r.featureSnapshot?.payload.totalScore || r.researchTotalScore,
+      summary: r.finalDecision?.summary || r.summary
+    }));
   }
 }

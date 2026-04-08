@@ -42,14 +42,15 @@ export class ResearchPerformanceService {
     const outcomes = await this.outcomeRepo.findByRunId(runId);
     if (outcomes.length === 0) return null;
 
-    const correct = outcomes.filter(o => o.isCorrectDirection === true).length;
-    const total5DReturn = outcomes.reduce((acc, cur) => acc + (cur.tPlus5Return || 0), 0);
+    const validOutcomes = outcomes; // 不再過濾，保留所有已回填的樣本
+    const correct = validOutcomes.filter(o => o.isCorrectDirection === true).length;
+    const total5DReturn = validOutcomes.reduce((acc, cur) => acc + (cur.tPlus5Return || 0), 0);
 
     return {
-      totalCount: outcomes.length,
+      totalCount: validOutcomes.length,
       correctDirectionCount: correct,
-      accuracy: correct / outcomes.length,
-      averageReturn5D: total5DReturn / outcomes.length
+      accuracy: correct / validOutcomes.length,
+      averageReturn5D: total5DReturn / validOutcomes.length
     };
   }
 

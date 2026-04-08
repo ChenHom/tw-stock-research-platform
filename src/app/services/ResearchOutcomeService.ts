@@ -1,4 +1,4 @@
-import type { ResearchOutcomeRepository, ResearchRunRepository } from '../../core/contracts/storage.js';
+import type { ResearchOutcomeRepository, ResearchRunRepository, ResearchOutcome } from '../../core/contracts/storage.js';
 import type { ProviderRegistry } from '../../modules/providers/ProviderRegistry.js';
 import type { MarketDailyRow } from '../../core/types/market.js';
 import { toTaipeiDateString } from '../../core/utils/date.js';
@@ -10,11 +10,7 @@ export class ResearchOutcomeService {
     private readonly providerRegistry: ProviderRegistry
   ) {}
 
-  /**
-   * 為特定任務的個股回填後續成效 (T+1, T+5, T+20)
-   */
   async backfillOutcomes(runId: string) {
-    // 1. 取得任務資訊以獲取原始 tradeDate (P0: 正確時點基準)
     const run = await this.runRepo.getRunById(runId);
     if (!run) throw new Error(`[Outcome] 找不到任務: ${runId}`);
 
@@ -24,29 +20,39 @@ export class ResearchOutcomeService {
     const baseDate = new Date(run.tradeDate);
 
     for (const res of results) {
-      // 2. 抓取研究當天的真實收盤價 (P0: 真實進場參考價)
-      const entryPriceData = await this.fetchPriceAt(res.stockId, baseDate, 0);
+      // 1. 抓取進場價 (T+0)
+      const entryPriceData = await this.fetchHistoricalPrice(res.stockId, baseDate, 0);
       const entryPrice = entryPriceData?.close || 0;
 
-      if (entryPrice === 0) {
-        console.warn(`[Outcome] 無法取得 ${res.stockId} 在 ${run.tradeDate} 的真實進場價，跳過計算。`);
+      if (entryPrice <= 0) {
+        console.warn(`[Outcome] 無法取得 ${res.stockId} 在 ${run.tradeDate} 的有效價格，跳過。`);
         continue;
       }
 
-      // 3. 根據 tradeDate 推算 T+1, T+5, T+20 的價量 (P0: 非 Date.now())
-      const t1 = await this.fetchPriceAt(res.stockId, baseDate, 1);
-      const t5 = await this.fetchPriceAt(res.stockId, baseDate, 5);
-      const t20 = await this.fetchPriceAt(res.stockId, baseDate, 20);
+      // 2. 抓取 T+1, T+5, T+20 (加入假日搜尋邏輯)
+      const t1 = await this.fetchPriceWithRetry(res.stockId, baseDate, 1);
+      const t5 = await this.fetchPriceWithRetry(res.stockId, baseDate, 5);
+      const t20 = await this.fetchPriceWithRetry(res.stockId, baseDate, 20);
 
-      const outcome = {
+      const calculateReturn = (close?: number) => {
+        if (!close || close <= 0) return undefined;
+        const ret = (close - entryPrice) / entryPrice;
+        return Number.isFinite(ret) ? ret : undefined;
+      };
+
+      const t1Ret = calculateReturn(t1?.close);
+      const t5Ret = calculateReturn(t5?.close);
+      const t20Ret = calculateReturn(t20?.close);
+
+      const outcome: ResearchOutcome = {
         runId,
         stockId: res.stockId,
         action: res.finalAction,
         entryReferencePrice: entryPrice,
-        tPlus1Return: t1 ? (t1.close - entryPrice) / entryPrice : undefined,
-        tPlus5Return: t5 ? (t5.close - entryPrice) / entryPrice : undefined,
-        tPlus20Return: t20 ? (t20.close - entryPrice) / entryPrice : undefined,
-        isCorrectDirection: this.judgeDirection(res.finalAction, t5 ? (t5.close - entryPrice) : 0)
+        tPlus1Return: t1Ret,
+        tPlus5Return: t5Ret,
+        tPlus20Return: t20Ret,
+        isCorrectDirection: this.judgeDirection(res.finalAction, t5Ret || t1Ret || 0)
       };
 
       await this.outcomeRepo.save(outcome);
@@ -54,33 +60,40 @@ export class ResearchOutcomeService {
   }
 
   /**
-   * 從 Provider 抓取特定偏移日期的價格
+   * 搜尋最近的有效交易日價格
    */
-  private async fetchPriceAt(stockId: string, baseDate: Date, daysLater: number): Promise<MarketDailyRow | null> {
-    const provider = this.providerRegistry.getByName('twse');
-    
+  private async fetchPriceWithRetry(stockId: string, baseDate: Date, daysLater: number): Promise<MarketDailyRow | null> {
+    // 嘗試 T+N 到 T+N+3 (因應連假)
+    for (let offset = 0; offset <= 3; offset++) {
+      const data = await this.fetchHistoricalPrice(stockId, baseDate, daysLater + offset);
+      if (data && data.close > 0) return data;
+    }
+    return null;
+  }
+
+  private async fetchHistoricalPrice(stockId: string, baseDate: Date, daysLater: number): Promise<MarketDailyRow | null> {
     const target = new Date(baseDate);
     target.setDate(target.getDate() + daysLater);
     const targetDateStr = toTaipeiDateString(target);
+    const provider = this.providerRegistry.getByName('finmind') || this.providerRegistry.getByName('twse');
     
     try {
       const resp = await provider?.fetch({ 
-        dataset: 'market_daily_latest', 
+        dataset: 'market_daily_history',
         stockId, 
-        startDate: targetDateStr 
-      }, { accountTier: 'free' });
-      
-      // 精確日期匹配 (P0)
+        startDate: targetDateStr,
+        endDate: targetDateStr
+      }, { accountTier: 'free', useCache: true });
       const rows = resp?.data as MarketDailyRow[];
-      return rows.find(r => r.tradeDate === targetDateStr) || null;
+      return rows && rows.length > 0 ? rows[0] : null;
     } catch {
       return null;
     }
   }
 
-  private judgeDirection(action: string, priceDiff: number): boolean {
-    if (['BUY', 'ADD', 'WATCH'].includes(action)) return priceDiff > 0;
-    if (['SELL', 'EXIT', 'TRIM'].includes(action)) return priceDiff < 0;
+  private judgeDirection(action: string, ret: number): boolean {
+    if (['BUY', 'ADD', 'WATCH'].includes(action)) return ret > 0;
+    if (['SELL', 'EXIT', 'TRIM'].includes(action)) return ret < 0;
     return false;
   }
 }
