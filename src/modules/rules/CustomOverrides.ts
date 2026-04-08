@@ -24,7 +24,7 @@ export class CustomStock1513RangeRule implements BaseRule {
       ruleId: this.id,
       ruleName: this.name,
       category: this.category,
-      action: triggered ? 'TRIM' : 'NO_ACTION',
+      action: triggered ? 'TRIM' : 'WATCH',
       severity: 'warning',
       triggered,
       reason: triggered ? '1513 range override triggered: 160-165 with volume contraction and negative institutional flow' : 'Conditions not met',

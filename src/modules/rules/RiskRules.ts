@@ -22,7 +22,7 @@ export class AbsoluteStopLossRule implements BaseRule {
       ruleId: this.id,
       ruleName: this.name,
       category: this.category,
-      action: triggered ? 'SELL' : 'NO_ACTION',
+      action: triggered ? 'SELL' : 'WATCH',
       severity: 'critical',
       triggered,
       reason: triggered ? `Current price ${currentPrice} <= stop loss ${stopLoss}` : 'Above stop loss'
@@ -48,7 +48,7 @@ export class ThesisBrokenRule implements BaseRule {
       ruleId: this.id,
       ruleName: this.name,
       category: this.category,
-      action: triggered ? 'EXIT' : 'NO_ACTION',
+      action: triggered ? 'EXIT' : 'WATCH',
       severity: 'critical',
       triggered,
       reason: triggered ? 'Thesis status is broken' : 'Thesis is intact'

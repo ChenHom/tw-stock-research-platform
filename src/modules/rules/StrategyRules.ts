@@ -20,7 +20,7 @@ export class CandidatePoolAddRule implements BaseRule {
       ruleId: this.id,
       ruleName: this.name,
       category: this.category,
-      action: triggered ? 'WATCH' : 'NO_ACTION',
+      action: triggered ? 'WATCH' : 'WATCH',
       severity: 'info',
       triggered,
       reason: triggered ? `Total score ${score} passes candidate threshold` : 'Score below threshold'

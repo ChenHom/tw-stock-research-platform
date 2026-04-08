@@ -8,6 +8,7 @@ export interface ResearchRun {
   topN: number;
   accountTier: string;
   status: 'running' | 'completed' | 'failed';
+  startedAt?: Date;
 }
 
 export interface CandidateResearchResultRecord {
