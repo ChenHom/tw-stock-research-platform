@@ -67,19 +67,15 @@ export class FinMindProvider implements DataProvider<
     const finmindDataset = datasetMap[dataset];
     if (!finmindDataset) throw new Error(`[FinMind] 不支援的資料集: ${dataset}`);
 
-    const params = new URLSearchParams({
-      dataset: finmindDataset,
-      data_id: query.stockId || '',
-      start_date: query.startDate || '',
-      end_date: query.endDate || ''
-    });
+    const params = new URLSearchParams();
+    params.append('dataset', finmindDataset);
+    if (query.stockId) params.append('data_id', query.stockId);
+    if (query.startDate) params.append('start_date', query.startDate);
+    if (query.endDate) params.append('end_date', query.endDate);
+    if (this.token) params.append('token', this.token);
 
     try {
-      const response = await fetch(`${this.baseUrl}?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${this.token || ''}`
-        }
-      });
+      const response = await fetch(`${this.baseUrl}?${params.toString()}`);
 
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const json = await response.json() as { data: any[] };
