@@ -17,7 +17,7 @@ async function main() {
         const summary = await queryService.getLatestRunSummary();
         if (!summary) {
           console.log('找不到任何研究紀錄。');
-          return;
+          process.exit(0);
         }
         console.log(reportGenerator.buildRunResultTable(summary.results, summary.run.tradeDate));
         break;
@@ -40,9 +40,8 @@ async function main() {
         const results = await queryService.getRunDetail(param);
         if (results.length === 0) {
           console.log('找不到該任務或該任務無結果。');
-          return;
+          process.exit(0);
         }
-        // 從第一筆結果抓日期 (簡化處理)
         console.log(reportGenerator.buildRunResultTable(results, '任務內容'));
         break;
       }
@@ -51,6 +50,10 @@ async function main() {
         console.error('未知模式。支援: latest, date, detail');
         process.exit(1);
     }
+    
+    // 強制結束以關閉連線池
+    process.exit(0);
+
   } catch (error) {
     console.error('[CLI] 查詢失敗:', error);
     process.exit(1);

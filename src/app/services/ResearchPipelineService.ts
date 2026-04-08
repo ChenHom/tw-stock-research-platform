@@ -52,8 +52,8 @@ export class ResearchPipelineService {
     // 抓取 0050 基準資料用於 Alpha 計算 (P0-3)
     const benchmark = await this.fetchRange('market_daily_history', '0050', getDaysAgo(30, new Date(input.tradeDate)), input.tradeDate, input, budget);
 
-    // 抓取新聞 (P0-3)
-    const news = await this.fetchRange('stock_news', input.stockId, getDaysAgo(7, new Date(input.tradeDate)), input.tradeDate, input, budget);
+    // 抓取新聞 (FinMind Free Tier 建議單日查詢以避免 400)
+    const news = await this.fetchRange('stock_news', input.stockId, input.tradeDate, input.tradeDate, input, budget);
 
     // 2. 構建特徵集
     const latestRevenue = monthRevenue?.data 

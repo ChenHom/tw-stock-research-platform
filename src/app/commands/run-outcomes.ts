@@ -19,7 +19,7 @@ async function main() {
       const latest = await queryService.getLatestRunSummary();
       if (!latest) {
         console.log('找不到任何研究任務。');
-        return;
+        process.exit(0);
       }
       runId = latest.run.runId;
     }
@@ -34,6 +34,9 @@ async function main() {
     await outcomeService.backfillOutcomes(runId);
     
     console.log(`[CLI] 任務 ${runId} 的成效數據已成功更新。`);
+    
+    // 強制結束行程以關閉連線
+    process.exit(0);
 
   } catch (error) {
     console.error('[CLI] 成效回填失敗:', error);
