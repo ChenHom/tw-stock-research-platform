@@ -46,15 +46,30 @@ export class TwseOpenApiProvider implements DataProvider<MarketDailyRow | Valuat
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}${endpoint}`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      // 增加 User-Agent 避免部分 Open Data 被封鎖
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      });
+
+      if (!response.ok) {
+        const errBody = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status}: ${response.statusText} | Body: ${errBody.slice(0, 100)}`);
+      }
       
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error(`回傳格式錯誤: 預期 JSON 但收到 ${contentType}`);
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const bodyPreview = await response.text().catch(() => '');
+        throw new Error(`回傳格式錯誤: 預期 JSON 但收到 ${contentType}。內容預覽: ${bodyPreview.slice(0, 100)}`);
       }
 
       const rawData = await response.json() as any[];
+      if (!Array.isArray(rawData)) {
+        throw new Error(`回傳資料格式非陣列: ${typeof rawData}`);
+      }
+
       const data = this.normalize(dataset, rawData, query.stockId, queryDate);
 
       const source: SourceMetadata = {
@@ -84,7 +99,7 @@ export class TwseOpenApiProvider implements DataProvider<MarketDailyRow | Valuat
 
       return result;
     } catch (error: any) {
-      console.error(`[TWSE] 抓取失敗: ${error.message}`);
+      console.error(`[TWSE] 抓取失敗 (${dataset}): ${error.message}`);
       throw error;
     }
   }
@@ -106,13 +121,13 @@ export class TwseOpenApiProvider implements DataProvider<MarketDailyRow | Valuat
       return filtered.map(r => ({
         stockId: r.Code,
         tradeDate: finalDate,
-        open: parseFloat(r.OpeningPrice) || 0,
-        high: parseFloat(r.HighestPrice) || 0,
-        low: parseFloat(r.LowestPrice) || 0,
-        close: parseFloat(r.ClosingPrice) || 0,
-        volume: parseInt(r.TradeVolume, 10) || 0,
-        turnover: parseInt(r.TradeValue, 10) || 0,
-        transactionCount: parseInt(r.Transaction, 10) || 0
+        open: parseFloat(r.OpeningPrice.replace(/,/g, '')) || 0,
+        high: parseFloat(r.HighestPrice.replace(/,/g, '')) || 0,
+        low: parseFloat(r.LowestPrice.replace(/,/g, '')) || 0,
+        close: parseFloat(r.ClosingPrice.replace(/,/g, '')) || 0,
+        volume: parseInt(r.TradeVolume.replace(/,/g, '')) || 0,
+        turnover: parseInt(r.TradeValue.replace(/,/g, '')) || 0,
+        transactionCount: parseInt(r.Transaction.replace(/,/g, '')) || 0
       }));
     }
 
@@ -120,9 +135,9 @@ export class TwseOpenApiProvider implements DataProvider<MarketDailyRow | Valuat
       return filtered.map(r => ({
         stockId: r.Code,
         tradeDate: finalDate,
-        peRatio: parseFloat(r.PEratio) || 0,
-        pbRatio: parseFloat(r.PBratio) || 0,
-        dividendYield: parseFloat(r.DividendYield) || 0
+        peRatio: parseFloat(r.PEratio.replace(/,/g, '')) || 0,
+        pbRatio: parseFloat(r.PBratio.replace(/,/g, '')) || 0,
+        dividendYield: parseFloat(r.DividendYield.replace(/,/g, '')) || 0
       }));
     }
 
