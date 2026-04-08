@@ -85,17 +85,29 @@ export class ResearchPipelineService {
       payload: featureSet
     };
 
+    // 2.5 自動合成初始論點 (若外部未提供且表現優異)
+    let activeThesis = thesis;
+    if (!activeThesis && featureSet.totalScore >= 60) {
+      activeThesis = this.deps.thesisTracker.createThesis({
+        stockId: input.stockId,
+        statement: '系統自動生成：多方基本面與籌碼面轉強',
+        direction: 'long',
+        evidence: [],
+        convictionScore: 60
+      });
+    }
+
     // 3. 評估論點狀態
-    const thesisStatus = thesis
-      ? this.deps.thesisTracker.evaluateStatus(thesis, {
+    const thesisStatus = activeThesis
+      ? this.deps.thesisTracker.evaluateStatus(activeThesis, {
           stockId: input.stockId,
           asOf: input.tradeDate,
           features: featureSet,
           thesis: {
-            id: thesis.thesisId,
-            version: thesis.version,
-            status: thesis.status,
-            direction: thesis.direction
+            id: activeThesis.thesisId,
+            version: activeThesis.version,
+            status: activeThesis.status,
+            direction: activeThesis.direction
           }
         })
       : 'none';
@@ -105,12 +117,12 @@ export class ResearchPipelineService {
       stockId: input.stockId,
       asOf: input.tradeDate,
       features: featureSet,
-      thesis: thesis
+      thesis: activeThesis
         ? {
-            id: thesis.thesisId,
-            version: thesis.version,
-            status: thesisStatus === 'none' ? thesis.status : thesisStatus,
-            direction: thesis.direction
+            id: activeThesis.thesisId,
+            version: activeThesis.version,
+            status: thesisStatus === 'none' ? activeThesis.status : thesisStatus,
+            direction: activeThesis.direction
           }
         : undefined
     });
@@ -140,7 +152,7 @@ export class ResearchPipelineService {
         news: news?.data || []
       },
       featureSnapshot,
-      thesisSnapshot: thesis,
+      thesisSnapshot: activeThesis,
       thesisStatus,
       ruleResults,
       finalDecision

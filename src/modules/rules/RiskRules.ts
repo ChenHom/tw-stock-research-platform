@@ -55,3 +55,32 @@ export class ThesisBrokenRule implements BaseRule {
     };
   }
 }
+
+export class RiskBlockRule implements BaseRule {
+  readonly id = 'risk.block_rule';
+  readonly name = 'Risk Block Rule';
+  readonly category = 'risk';
+  readonly priority = 110;
+  readonly tags = ['risk', 'block'];
+
+  supports(context: RuleContext): boolean {
+    return true;
+  }
+
+  async evaluate(context: RuleContext): Promise<RuleResult> {
+    const score = context.features.totalScore ?? 0;
+    const marginRisk = context.features.marginRiskScore ?? 0;
+
+    const triggered = score < 40 || marginRisk >= 80;
+
+    return {
+      ruleId: this.id,
+      ruleName: this.name,
+      category: this.category,
+      action: triggered ? 'BLOCK' : 'WATCH',
+      severity: 'critical',
+      triggered,
+      reason: triggered ? `High risk: score=${score}, marginRisk=${marginRisk}` : 'Risk acceptable'
+    };
+  }
+}

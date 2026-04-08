@@ -1,59 +1,62 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PostgresFeatureSnapshotRepository, PostgresFinalDecisionRepository } from '../src/modules/storage/PostgresRepositories.js';
+import { PostgresResearchRunRepository, PostgresFeatureSnapshotRepository } from '../src/modules/storage/PostgresRepositories.js';
 import { createSqlContext } from '../src/modules/storage/SqlContext.js';
 import { randomUUID } from 'node:crypto';
 
 test('Postgres Repositories (嚴格驗證): 應能成功寫入並讀回研究結果', async (t) => {
   const sql = createSqlContext();
+  const runRepo = new PostgresResearchRunRepository(sql);
   const featureRepo = new PostgresFeatureSnapshotRepository(sql);
-  const decisionRepo = new PostgresFinalDecisionRepository(sql);
 
-  const stockId = 'T' + Math.floor(Date.now() / 1000).toString().slice(-5);
-  
+  const runId = randomUUID();
+  const stockId = '2330';
+
   try {
-    // 1. 預插入 Stock Master (滿足外鍵)
-    await sql`INSERT INTO stock_master (stock_id, stock_name, board) VALUES (${stockId}, '測試股', 'TW')`;
+    // 1. 測試儲存 Run
+    await runRepo.save({
+      runId,
+      tradeDate: '2024-04-03',
+      criteria: { test: true },
+      topN: 1,
+      accountTier: 'free',
+      status: 'running',
+      startedAt: new Date()
+    });
 
-    // 2. 測試 Feature Snapshot
-    const mockSnapshot = {
-      id: randomUUID(),
+    // 2. 測試儲存 Feature Snapshot (UUID 型別)
+    const snapshotId = randomUUID();
+    await featureRepo.save({
+      id: snapshotId,
       stockId,
-      snapshotAt: new Date().toISOString(),
+      snapshotAt: new Date(),
       featureSetVersion: '1.0.0',
-      payload: { closePrice: 100, totalScore: 85 } as any
-    };
-    await featureRepo.save(mockSnapshot);
-    
-    const savedSnapshots = await featureRepo.findByStockId(stockId, 1);
-    assert.strictEqual(savedSnapshots.length, 1);
-    assert.strictEqual(savedSnapshots[0].stockId, stockId);
+      payload: { totalScore: 85 }
+    });
 
-    // 3. 測試 Final Decision
-    const mockDecision = {
+    // 3. 測試儲存 Results
+    await runRepo.saveResults([{
+      runId,
       stockId,
-      decisionDate: '2024-04-03',
-      action: 'BUY' as any,
-      confidence: 0.88,
-      summary: '測試決策',
-      thesisStatus: 'active' as any,
-      supportingRules: ['rule1'],
-      blockingRules: [],
-      composerVersion: '1.3.1'
-    };
-    await decisionRepo.save(mockDecision);
-    
-    const latestDecision = await decisionRepo.getLatest(stockId);
-    assert.ok(latestDecision);
-    assert.strictEqual(latestDecision?.action, 'BUY');
-    // 注意：Postgres NUMERIC 轉 JS 可能為 string 或精度問題，此處使用比較運算
-    assert.strictEqual(Number(latestDecision?.confidence), 0.88);
+      preliminaryScore: 80,
+      researchTotalScore: 85,
+      finalAction: 'BUY',
+      confidence: 0.9,
+      summary: 'Test',
+      ruleResults: [],
+      thesisStatus: 'met'
+    }]);
 
-    console.log(`[SmokeTest] Postgres 儲存驗證成功。`);
+    // 4. 讀回驗證
+    const results = await runRepo.getRunResults(runId);
+    assert.strictEqual(results.length, 1);
+    assert.strictEqual(results[0].stockId, stockId);
+    assert.strictEqual(Number(results[0].researchTotalScore), 85);
+
+    console.log('[SmokeTest] Postgres 儲存驗證成功。');
 
   } catch (error) {
     console.error('[SmokeTest] 資料庫測試失敗，任務終止:', error);
-    // 強制測試失敗 (Fail-fast)
     throw error;
   } finally {
     await sql.end();

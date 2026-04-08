@@ -42,7 +42,7 @@ async function main() {
   const budget = app.budgetGuard.evaluate('finmind', 0, 600);
 
   try {
-    // 1. 初始化研究紀錄 (關鍵修正：不論模式都必須有 Run 紀錄)
+    // 1. 初始化研究紀錄
     await app.repositories.researchRuns.save({
       runId,
       tradeDate,
@@ -62,29 +62,41 @@ async function main() {
           const research = await app.researchPipeline.run({
             stockId, tradeDate, accountTier: 'free', useCache: true
           }, budget);
-          results.push({ stockId, preliminaryScore: 0, research }); // 假分數歸 0
+          results.push({ 
+            stockId, 
+            preliminaryScore: null as any, // P0-4: 強制模式下設為 null
+            research 
+          });
         } catch (e) {
           console.error(`[CLI] 深度研究失敗 (${stockId}):`, e);
         }
       }
     } else {
-      // 使用協調器執行 (原本就具備 UUID 內部邏輯，但為了統一改手動呼叫)
-      // 注意：這裡為了確保 runId 一致，直接調用內層組件而非 Service.run
       const candidates = await app.screeningService.screen({ minVolume: 2000, maxPe: 25 });
       const topCandidates = candidates.slice(0, topN);
       for (const cand of topCandidates) {
-        const research = await app.researchPipeline.run({
-          stockId: cand.stockId, tradeDate, accountTier: 'free', useCache: true
-        }, budget);
-        results.push({ stockId: cand.stockId, preliminaryScore: cand.preliminaryScore, research });
+        try {
+          const research = await app.researchPipeline.run({
+            stockId: cand.stockId, tradeDate, accountTier: 'free', useCache: true
+          }, budget);
+          results.push({ stockId: cand.stockId, preliminaryScore: cand.preliminaryScore, research });
+        } catch (e) {
+          console.error(`[CLI] 研究 Pipeline 失敗 (${cand.stockId}):`, e);
+        }
       }
     }
 
-    // 2. 儲存結果並更新狀態 (確保資料鏈串接)
+    if (results.length === 0) {
+      console.warn('[CLI] 找不到符合條件的候選股或研究全部失敗。');
+      await app.repositories.researchRuns.updateStatus(runId, 'failed');
+      process.exit(0);
+    }
+
+    // 2. 儲存結果並更新狀態
     const records: CandidateResearchResultRecord[] = results.map(r => ({
       runId,
       stockId: r.stockId,
-      preliminaryScore: r.preliminaryScore,
+      preliminaryScore: r.preliminaryScore === null ? -1 : r.preliminaryScore, // DB 不支援 null 則存 -1
       researchTotalScore: r.research.featureSnapshot.payload.totalScore,
       finalAction: r.research.finalDecision.action,
       confidence: r.research.finalDecision.confidence,
@@ -98,10 +110,19 @@ async function main() {
 
     console.log(`\n[CLI] 研究任務完成。RunId: ${runId}`);
     console.log('\n--- 候選池研究報表 ---');
-    console.log(reportGenerator.buildRunResultTable(results.map(r => ({
-      ...r.research,
-      preliminaryScore: r.preliminaryScore
-    })), tradeDate));
+    
+    // P0-1: 確保傳遞給報表的資料結構正確 (ViewModel 映射)
+    const viewModels = results.map(r => ({
+      stockId: r.stockId,
+      preliminaryScore: r.preliminaryScore,
+      totalScore: r.research.featureSnapshot.payload.totalScore,
+      action: r.research.finalDecision.action,
+      confidence: r.research.finalDecision.confidence,
+      summary: r.research.finalDecision.summary,
+      thesisStatus: r.research.thesisStatus
+    }));
+
+    console.log(reportGenerator.buildMarkdownTableFromModels(viewModels, tradeDate));
 
     process.exit(0);
 

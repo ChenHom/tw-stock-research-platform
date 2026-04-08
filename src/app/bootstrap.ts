@@ -1,8 +1,8 @@
 import { DefaultDatasetRouter } from '../modules/router/DatasetRouter.js';
 import { RateBudgetGuard } from '../modules/budget/RateBudgetGuard.js';
 import { DefaultRuleEngine, DefaultRuleRegistry } from '../modules/rules/RuleEngine.js';
-import { AbsoluteStopLossRule, ThesisBrokenRule } from '../modules/rules/RiskRules.js';
-import { CandidatePoolAddRule } from '../modules/rules/StrategyRules.js';
+import { AbsoluteStopLossRule, ThesisBrokenRule, RiskBlockRule } from '../modules/rules/RiskRules.js';
+import { CandidatePoolAddRule, BuySetupRule, TrendWeakeningRule } from '../modules/rules/StrategyRules.js';
 import { CustomStock1513RangeRule } from '../modules/rules/CustomOverrides.js';
 import { TwseOpenApiProvider } from '../modules/providers/twse/TwseOpenApiProvider.js';
 import { FinMindProvider } from '../modules/providers/finmind/FinMindProvider.js';
@@ -96,7 +96,10 @@ export function bootstrap(overrides?: BootstrapOverrides) {
   const ruleRegistry = new DefaultRuleRegistry();
   ruleRegistry.register(new AbsoluteStopLossRule());
   ruleRegistry.register(new ThesisBrokenRule());
+  ruleRegistry.register(new RiskBlockRule());
   ruleRegistry.register(new CandidatePoolAddRule());
+  ruleRegistry.register(new BuySetupRule());
+  ruleRegistry.register(new TrendWeakeningRule());
   ruleRegistry.register(new CustomStock1513RangeRule());
   
   const ruleEngine = new DefaultRuleEngine(ruleRegistry);

@@ -66,7 +66,14 @@ export class DecisionComposer {
     if (primaryRule?.severity === 'critical') confidence += 0.1;
 
     // 5. 產出摘要理由
-    const summary = this.generateDetailedSummary(finalAction, thesisStatus, buyRules.length, exitRules.length, primaryRule?.ruleName);
+    const summary = this.generateDetailedSummary(
+      finalAction, 
+      thesisStatus, 
+      buyRules.length, 
+      exitRules.length, 
+      primaryRule?.ruleName,
+      input
+    );
 
     return {
       stockId: input.stockId,
@@ -81,7 +88,7 @@ export class DecisionComposer {
     };
   }
 
-  private generateDetailedSummary(action: RuleAction, thesis: ThesisStatus | 'none', buys: number, exits: number, primaryName?: string): string {
+  private generateDetailedSummary(action: RuleAction, thesis: ThesisStatus | 'none', buys: number, exits: number, primaryName?: string, input?: DecisionComposerInput): string {
     const parts: string[] = [];
     
     if (thesis === 'none') parts.push('[無論點支撐]');
@@ -90,7 +97,14 @@ export class DecisionComposer {
     else if (thesis === 'broken') parts.push('投資論點已破壞，強制建議出場。');
     else if (action === 'EXIT' || action === 'SELL' || action === 'TRIM') parts.push(`主導規則 [${primaryName || '未知'}] 建議減碼或出場。`);
     else if (action === 'BUY' || action === 'ADD') parts.push(`主導規則 [${primaryName || '未知'}] 建議偏多操作。`);
-    else if (action === 'WATCH') parts.push(primaryName ? `主導規則 [${primaryName}] 顯示指標轉強，建議加入觀察。` : '目前無明確交易訊號，維持觀察。');
+    else if (action === 'WATCH') {
+      const missing = [];
+      const score = input?.ruleResults[0] ? (input as any).valuationGap || 0 : 0; // Simplified
+      
+      // 解析未達標的可能原因
+      // 由於此處只有 ruleResults 和 thesisStatus，我們可以用一個通用的解釋：
+      parts.push(primaryName ? `主導規則 [${primaryName}] 顯示指標轉強，建議加入觀察。` : '目前無明確交易訊號，維持觀察。');
+    }
     else parts.push('目前無明確交易訊號。');
 
     if (buys > 0 && exits > 0) parts.push(`警告：系統偵測到 ${buys} 項偏多與 ${exits} 項偏空規則衝突。`);

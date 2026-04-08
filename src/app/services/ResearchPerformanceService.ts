@@ -44,13 +44,21 @@ export class ResearchPerformanceService {
 
     const validOutcomes = outcomes; // 不再過濾，保留所有已回填的樣本
     const correct = validOutcomes.filter(o => o.isCorrectDirection === true).length;
-    const total5DReturn = validOutcomes.reduce((acc, cur) => acc + (cur.tPlus5Return || 0), 0);
+    
+    let total5DReturn = 0;
+    let validReturnCount = 0;
+    for (const o of validOutcomes) {
+      if (typeof o.tPlus5Return === 'number' && Number.isFinite(o.tPlus5Return)) {
+        total5DReturn += o.tPlus5Return;
+        validReturnCount++;
+      }
+    }
 
     return {
       totalCount: validOutcomes.length,
       correctDirectionCount: correct,
-      accuracy: correct / validOutcomes.length,
-      averageReturn5D: total5DReturn / validOutcomes.length
+      accuracy: validOutcomes.length > 0 ? correct / validOutcomes.length : 0,
+      averageReturn5D: validReturnCount > 0 ? total5DReturn / validReturnCount : 0
     };
   }
 
@@ -69,12 +77,19 @@ export class ResearchPerformanceService {
 
     return Array.from(actionGroups.entries()).map(([action, list]) => {
       const correct = list.filter(o => o.isCorrectDirection === true).length;
-      const totalReturn = list.reduce((acc, cur) => acc + (cur.tPlus5Return || 0), 0);
+      let totalReturn = 0;
+      let validCount = 0;
+      for (const o of list) {
+        if (typeof o.tPlus5Return === 'number' && Number.isFinite(o.tPlus5Return)) {
+          totalReturn += o.tPlus5Return;
+          validCount++;
+        }
+      }
       return {
         action,
         count: list.length,
-        accuracy: correct / list.length,
-        avgReturn: totalReturn / list.length
+        accuracy: list.length > 0 ? correct / list.length : 0,
+        avgReturn: validCount > 0 ? totalReturn / validCount : 0
       };
     });
   }
@@ -94,8 +109,8 @@ export class ResearchPerformanceService {
       const outcome = outcomeMap.get(res.stockId);
       if (!outcome || !res.ruleResults) continue;
 
-      // 找出所有 Passed (觸發且過關) 的規則
-      const triggeredRules = res.ruleResults.filter((r: any) => r.status === 'passed');
+      // 找出所有觸發的規則 (RuleResult 使用 triggered 布林值)
+      const triggeredRules = res.ruleResults.filter((r: any) => r.triggered === true);
       for (const rule of triggeredRules) {
         if (!ruleStats.has(rule.ruleId)) {
           ruleStats.set(rule.ruleId, { hit: 0, correct: 0, returns: [] });
@@ -103,7 +118,9 @@ export class ResearchPerformanceService {
         const s = ruleStats.get(rule.ruleId)!;
         s.hit += 1;
         if (outcome.isCorrectDirection) s.correct += 1;
-        if (outcome.tPlus5Return !== undefined) s.returns.push(outcome.tPlus5Return);
+        if (typeof outcome.tPlus5Return === 'number' && Number.isFinite(outcome.tPlus5Return)) {
+          s.returns.push(outcome.tPlus5Return);
+        }
       }
     }
 
@@ -111,7 +128,7 @@ export class ResearchPerformanceService {
       ruleId,
       hitCount: s.hit,
       correctCount: s.correct,
-      accuracy: s.correct / s.hit,
+      accuracy: s.hit > 0 ? s.correct / s.hit : 0,
       avgReturn: s.returns.length > 0 ? s.returns.reduce((a, b) => a + b, 0) / s.returns.length : 0
     })).sort((a, b) => b.accuracy - a.accuracy);
   }
@@ -138,13 +155,15 @@ export class ResearchPerformanceService {
       const s = statusStats.get(status)!;
       s.count += 1;
       if (outcome.isCorrectDirection) s.correct += 1;
-      if (outcome.tPlus5Return !== undefined) s.returns.push(outcome.tPlus5Return);
+      if (typeof outcome.tPlus5Return === 'number' && Number.isFinite(outcome.tPlus5Return)) {
+        s.returns.push(outcome.tPlus5Return);
+      }
     }
 
     return Array.from(statusStats.entries()).map(([status, s]) => ({
       status,
       count: s.count,
-      accuracy: s.correct / s.count,
+      accuracy: s.count > 0 ? s.correct / s.count : 0,
       avgReturn: s.returns.length > 0 ? s.returns.reduce((a, b) => a + b, 0) / s.returns.length : 0
     })).sort((a, b) => b.accuracy - a.accuracy);
   }
