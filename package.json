@@ -6,16 +6,16 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "tsc --noEmit -p tsconfig.json",
-    "test": "NODE_OPTIONS='--loader ts-node/esm' node --test tests/*.test.ts",
+    "test": "node --test --import tsx tests/*.test.ts",
     "validate": "npm run lint && npm test",
-    "db:up": "NODE_OPTIONS='--loader ts-node/esm' node src/app/migrate.ts up",
-    "db:down": "NODE_OPTIONS='--loader ts-node/esm' node src/app/migrate.ts down",
-    "research": "NODE_OPTIONS='--loader ts-node/esm' node src/app/commands/run-research.ts",
-    "candidates": "NODE_OPTIONS='--loader ts-node/esm' node src/app/commands/run-candidates.ts",
-    "run-history": "NODE_OPTIONS='--loader ts-node/esm' node src/app/commands/run-history.ts",
-    "outcomes": "NODE_OPTIONS='--loader ts-node/esm' node src/app/commands/run-outcomes.ts",
-    "performance": "NODE_OPTIONS='--loader ts-node/esm' node src/app/commands/run-performance.ts",
-    "insights": "NODE_OPTIONS='--loader ts-node/esm' node src/app/commands/run-insights.ts",
+    "db:up": "tsx src/app/migrate.ts up",
+    "db:down": "tsx src/app/migrate.ts down",
+    "research": "tsx src/app/commands/run-research.ts",
+    "candidates": "tsx src/app/commands/run-candidates.ts",
+    "run-history": "tsx src/app/commands/run-history.ts",
+    "outcomes": "tsx src/app/commands/run-outcomes.ts",
+    "performance": "tsx src/app/commands/run-performance.ts",
+    "insights": "tsx src/app/commands/run-insights.ts",
     "dev:tree": "node ./src/app/print-tree.js",
     "prepare": "husky"
   },
@@ -24,6 +24,7 @@
     "@types/pg": "^8.20.0",
     "husky": "^9.1.7",
     "ts-node": "^10.9.2",
+    "tsx": "^4.19.3",
     "typescript": "^5.9.3"
   },
   "dependencies": {
