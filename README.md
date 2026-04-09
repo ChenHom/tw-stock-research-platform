@@ -255,11 +255,11 @@ npm run insights range <start-date> <end-date>     # 批次聚合分析
 ### 執行多日批次回測與聚合分析
 針對指定區間自動執行每日研究與回填，並產出聚合後的績效與洞察報告，以累積評估樣本數。
 ```bash
-./scripts/mvp-batch.sh 2024-04-01 2024-04-10
+npm run test:batch 2024-04-01 2024-04-10
 ```
 
 ### 持續整合 (CI)
-專案已接入 GitHub Actions，在每次 Push / Pull Request 時會自動建立 PostgreSQL 與 Redis 服務容器，並執行 `npm run test:e2e` 以確保端到端閉環與資料斷言的正確性。
+專案已接入 GitHub Actions，在每次 Push / Pull Request 時會自動建立 PostgreSQL 與 Redis 服務容器，並執行 `npm run test:e2e` 與 `npm run test:batch` 以確保端到端閉環與資料斷言的正確性。
 
 ### 測試時要確認
 - 候選股能正常產出
@@ -286,7 +286,7 @@ npm run insights range <start-date> <end-date>     # 批次聚合分析
 
 這個專案目前不是單純研究原型，已經進階到：
 
-**具備單日 smoke 驗收、支援區間批次聚合績效分析的研究閉環 MVP**
+**具備單日 smoke 與多日批次驗收、支援區間批次聚合績效分析的研究閉環 MVP**
 
 也就是可以開始做：
 - MVP 流程測試

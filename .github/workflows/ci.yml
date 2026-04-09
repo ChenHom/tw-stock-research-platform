@@ -80,3 +80,14 @@ jobs:
           DB_NAME: tw_stock_research
           REDIS_HOST: localhost
           FINMIND_API_TOKEN: ${{ secrets.FINMIND_API_TOKEN }}
+
+      - name: Run 3-Day Batch Test
+        run: npm run test:batch 2024-04-01 2024-04-03
+        env:
+          STORAGE_TYPE: postgres
+          DB_HOST: localhost
+          DB_USER: researcher
+          DB_PASSWORD: research_pass
+          DB_NAME: tw_stock_research
+          REDIS_HOST: localhost
+          FINMIND_API_TOKEN: \${{ secrets.FINMIND_API_TOKEN }}
