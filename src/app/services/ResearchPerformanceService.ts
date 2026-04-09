@@ -43,6 +43,7 @@ export class ResearchPerformanceService {
     if (outcomes.length === 0) return null;
 
     const validOutcomes = outcomes; // 不再過濾，保留所有已回填的樣本
+    const validDirectionCount = validOutcomes.filter(o => typeof o.isCorrectDirection === 'boolean').length;
     const correct = validOutcomes.filter(o => o.isCorrectDirection === true).length;
     
     let total5DReturn = 0;
@@ -57,8 +58,8 @@ export class ResearchPerformanceService {
     return {
       totalCount: validOutcomes.length,
       correctDirectionCount: correct,
-      accuracy: validOutcomes.length > 0 ? correct / validOutcomes.length : 0,
-      averageReturn5D: validReturnCount > 0 ? total5DReturn / validReturnCount : 0
+      accuracy: validDirectionCount > 0 ? correct / validDirectionCount : 0,
+      averageReturn5D: validReturnCount > 0 ? total5DReturn / validReturnCount : undefined as any // 改回傳 undefined，並由報表轉 N/A
     };
   }
 
@@ -76,6 +77,7 @@ export class ResearchPerformanceService {
     }
 
     return Array.from(actionGroups.entries()).map(([action, list]) => {
+      const validDir = list.filter(o => typeof o.isCorrectDirection === 'boolean').length;
       const correct = list.filter(o => o.isCorrectDirection === true).length;
       let totalReturn = 0;
       let validCount = 0;
@@ -88,8 +90,8 @@ export class ResearchPerformanceService {
       return {
         action,
         count: list.length,
-        accuracy: list.length > 0 ? correct / list.length : 0,
-        avgReturn: validCount > 0 ? totalReturn / validCount : 0
+        accuracy: validDir > 0 ? correct / validDir : 0,
+        avgReturn: validCount > 0 ? totalReturn / validCount : undefined as any
       };
     });
   }
@@ -103,21 +105,21 @@ export class ResearchPerformanceService {
     if (outcomes.length === 0 || results.length === 0) return [];
 
     const outcomeMap = new Map(outcomes.map(o => [o.stockId, o]));
-    const ruleStats = new Map<string, { hit: number; correct: number; returns: number[] }>();
+    const ruleStats = new Map<string, { hit: number; validDir: number; correct: number; returns: number[] }>();
 
     for (const res of results) {
       const outcome = outcomeMap.get(res.stockId);
       if (!outcome || !res.ruleResults) continue;
 
-      // 找出所有觸發的規則 (RuleResult 使用 triggered 布林值)
       const triggeredRules = res.ruleResults.filter((r: any) => r.triggered === true);
       for (const rule of triggeredRules) {
         if (!ruleStats.has(rule.ruleId)) {
-          ruleStats.set(rule.ruleId, { hit: 0, correct: 0, returns: [] });
+          ruleStats.set(rule.ruleId, { hit: 0, validDir: 0, correct: 0, returns: [] });
         }
         const s = ruleStats.get(rule.ruleId)!;
         s.hit += 1;
-        if (outcome.isCorrectDirection) s.correct += 1;
+        if (typeof outcome.isCorrectDirection === 'boolean') s.validDir += 1;
+        if (outcome.isCorrectDirection === true) s.correct += 1;
         if (typeof outcome.tPlus5Return === 'number' && Number.isFinite(outcome.tPlus5Return)) {
           s.returns.push(outcome.tPlus5Return);
         }
@@ -128,8 +130,8 @@ export class ResearchPerformanceService {
       ruleId,
       hitCount: s.hit,
       correctCount: s.correct,
-      accuracy: s.hit > 0 ? s.correct / s.hit : 0,
-      avgReturn: s.returns.length > 0 ? s.returns.reduce((a, b) => a + b, 0) / s.returns.length : 0
+      accuracy: s.validDir > 0 ? s.correct / s.validDir : 0,
+      avgReturn: s.returns.length > 0 ? s.returns.reduce((a, b) => a + b, 0) / s.returns.length : undefined as any
     })).sort((a, b) => b.accuracy - a.accuracy);
   }
 
@@ -142,7 +144,7 @@ export class ResearchPerformanceService {
     if (outcomes.length === 0 || results.length === 0) return [];
 
     const outcomeMap = new Map(outcomes.map(o => [o.stockId, o]));
-    const statusStats = new Map<string, { count: number; correct: number; returns: number[] }>();
+    const statusStats = new Map<string, { count: number; validDir: number; correct: number; returns: number[] }>();
 
     for (const res of results) {
       const outcome = outcomeMap.get(res.stockId);
@@ -150,11 +152,12 @@ export class ResearchPerformanceService {
 
       const status = res.thesisStatus;
       if (!statusStats.has(status)) {
-        statusStats.set(status, { count: 0, correct: 0, returns: [] });
+        statusStats.set(status, { count: 0, validDir: 0, correct: 0, returns: [] });
       }
       const s = statusStats.get(status)!;
       s.count += 1;
-      if (outcome.isCorrectDirection) s.correct += 1;
+      if (typeof outcome.isCorrectDirection === 'boolean') s.validDir += 1;
+      if (outcome.isCorrectDirection === true) s.correct += 1;
       if (typeof outcome.tPlus5Return === 'number' && Number.isFinite(outcome.tPlus5Return)) {
         s.returns.push(outcome.tPlus5Return);
       }
@@ -163,8 +166,8 @@ export class ResearchPerformanceService {
     return Array.from(statusStats.entries()).map(([status, s]) => ({
       status,
       count: s.count,
-      accuracy: s.count > 0 ? s.correct / s.count : 0,
-      avgReturn: s.returns.length > 0 ? s.returns.reduce((a, b) => a + b, 0) / s.returns.length : 0
+      accuracy: s.validDir > 0 ? s.correct / s.validDir : 0,
+      avgReturn: s.returns.length > 0 ? s.returns.reduce((a, b) => a + b, 0) / s.returns.length : undefined as any
     })).sort((a, b) => b.accuracy - a.accuracy);
   }
 }

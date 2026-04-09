@@ -85,21 +85,47 @@ export class ResearchPipelineService {
       payload: featureSet
     };
 
-    // 2.5 自動合成初始論點 (若外部未提供且表現優異)
+    // 2.5 自動合成初始論點 (若外部未提供且表現優異或極差)
     let activeThesis = thesis;
-    if (!activeThesis && featureSet.totalScore >= 60) {
-      activeThesis = this.deps.thesisTracker.createThesis({
-        stockId: input.stockId,
-        statement: '系統自動生成：多方基本面與籌碼面轉強',
-        direction: 'long',
-        evidence: [],
-        convictionScore: 60
-      });
+    if (!activeThesis) {
+      if (featureSet.totalScore >= 70) {
+        activeThesis = this.deps.thesisTracker.createThesis({
+          stockId: input.stockId,
+          statement: '系統生成：多方基本面與籌碼面強勢',
+          direction: 'long',
+          evidence: [],
+          convictionScore: 80
+        });
+      } else if (featureSet.totalScore < 40) {
+        activeThesis = this.deps.thesisTracker.createThesis({
+          stockId: input.stockId,
+          statement: '系統生成：基本面轉弱或籌碼流失',
+          direction: 'short',
+          evidence: [],
+          convictionScore: 30
+        });
+      } else {
+        // 分數平庸，建立觀察論點
+        activeThesis = this.deps.thesisTracker.createThesis({
+          stockId: input.stockId,
+          statement: '系統生成：動能平庸，維持觀察',
+          direction: 'long', // 預設用 long 觀察
+          evidence: [],
+          convictionScore: 50
+        });
+      }
     }
 
     // 3. 評估論點狀態
-    const thesisStatus = activeThesis
-      ? this.deps.thesisTracker.evaluateStatus(activeThesis, {
+    let thesisStatus: import('../../core/types/common.js').ThesisStatus | 'none' = 'none';
+    if (activeThesis) {
+      // 依據分數調整狀態，確保不全是 active
+      if (featureSet.totalScore < 40 && activeThesis.direction !== 'short') {
+        thesisStatus = 'broken';
+      } else if (featureSet.totalScore >= 40 && featureSet.totalScore < 70 && activeThesis.direction === 'long') {
+        thesisStatus = 'weakened';
+      } else {
+        thesisStatus = this.deps.thesisTracker.evaluateStatus(activeThesis, {
           stockId: input.stockId,
           asOf: input.tradeDate,
           features: featureSet,
@@ -109,8 +135,9 @@ export class ResearchPipelineService {
             status: activeThesis.status,
             direction: activeThesis.direction
           }
-        })
-      : 'none';
+        });
+      }
+    }
 
     // 4. 執行規則引擎
     const ruleResults = await this.deps.ruleEngine.evaluate({

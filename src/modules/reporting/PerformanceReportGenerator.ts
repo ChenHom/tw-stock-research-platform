@@ -11,6 +11,10 @@ export class PerformanceReportGenerator {
     ruleBreakdown: RuleBreakdown[],
     thesisBreakdown: ThesisBreakdown[]
   ): string {
+    const formatRet = (val: number | undefined) => {
+      return (val !== undefined && Number.isFinite(val)) ? (val * 100).toFixed(2) + '%' : 'N/A';
+    };
+
     const summary = [
       `# 研究任務成效分析報告`,
       `任務 ID: ${runId}`,
@@ -20,7 +24,7 @@ export class PerformanceReportGenerator {
       `- 總研究個股數: ${stats.totalCount}`,
       `- 方向預測正確數: ${stats.correctDirectionCount}`,
       `- **綜合準確率: ${(stats.accuracy * 100).toFixed(1)}%**`,
-      `- **5日平均報酬率: ${(stats.averageReturn5D * 100).toFixed(2)}%**`,
+      `- **5日平均報酬率: ${formatRet(stats.averageReturn5D as any)}**`,
       ''
     ];
 
@@ -31,7 +35,7 @@ export class PerformanceReportGenerator {
     ];
     const actionRows = actionBreakdown.map(b => {
       const acc = (b.accuracy * 100).toFixed(1) + '%';
-      const ret = (b.avgReturn * 100).toFixed(2) + '%';
+      const ret = formatRet(b.avgReturn as any);
       return `| **${b.action}** | ${b.count} | ${acc} | ${ret} |`;
     });
 
@@ -43,7 +47,7 @@ export class PerformanceReportGenerator {
     ];
     const ruleRows = ruleBreakdown.map(b => {
       const acc = (b.accuracy * 100).toFixed(1) + '%';
-      const ret = (b.avgReturn * 100).toFixed(2) + '%';
+      const ret = formatRet(b.avgReturn as any);
       return `| \`${b.ruleId}\` | ${b.hitCount} | ${acc} | ${ret} |`;
     });
 
@@ -55,7 +59,7 @@ export class PerformanceReportGenerator {
     ];
     const thesisRows = thesisBreakdown.map(b => {
       const acc = (b.accuracy * 100).toFixed(1) + '%';
-      const ret = (b.avgReturn * 100).toFixed(2) + '%';
+      const ret = formatRet(b.avgReturn as any);
       return `| **${b.status}** | ${b.count} | ${acc} | ${ret} |`;
     });
 
