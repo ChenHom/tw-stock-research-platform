@@ -37,10 +37,14 @@ export class InsightsReportGenerator {
       '',
       `## 3. 論點與動作表現`,
       '### 論點狀態勝率',
-      ...insights.thesisPerformance.map(t => `- **${t.status}**: ${(t.accuracy * 100).toFixed(1)}% (n=${t.count})`),
+      '| 狀態 | 準確率 | 樣本數 | 置信度 |',
+      '| :--- | :---: | :---: | :---: |',
+      ...insights.thesisPerformance.map(t => `| **${t.status}** | ${(t.accuracy * 100).toFixed(1)}% | ${t.evaluableCount} | ${t.confidenceLevel} |`),
       '',
       '### 決策動作勝率',
-      ...insights.actionPerformance.map(a => `- **${a.action}**: ${(a.accuracy * 100).toFixed(1)}% (n=${a.count})`)
+      '| 動作 | 準確率 | 樣本數 | 置信度 |',
+      '| :--- | :---: | :---: | :---: |',
+      ...insights.actionPerformance.map(a => `| **${a.action}** | ${(a.accuracy * 100).toFixed(1)}% | ${a.evaluableCount} | ${a.confidenceLevel} |`)
     ];
 
     return [

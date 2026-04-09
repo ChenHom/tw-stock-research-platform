@@ -6,6 +6,7 @@ export interface PerformanceStats {
   correctDirectionCount: number;
   accuracy: number;
   averageReturn5D: number;
+  validReturnCount: number; // 新增：5D 報酬可計算筆數
 }
 
 export interface ActionBreakdown {
@@ -64,7 +65,8 @@ export class ResearchPerformanceService {
       evaluableCount: evaluableOutcomes.length,
       correctDirectionCount: correct,
       accuracy: evaluableOutcomes.length > 0 ? correct / evaluableOutcomes.length : 0,
-      averageReturn5D: validReturnCount > 0 ? total5DReturn / validReturnCount : undefined as any
+      averageReturn5D: validReturnCount > 0 ? total5DReturn / validReturnCount : undefined as any,
+      validReturnCount: validReturnCount
     };
   }
 

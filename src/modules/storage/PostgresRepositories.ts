@@ -148,6 +148,13 @@ export class PostgresResearchOutcomeRepository implements ResearchOutcomeReposit
       FROM research_outcomes
       WHERE run_id = ${runId}
     `;
-    return rows as any[];
+    return rows.map(r => ({
+      ...r,
+      entryReferencePrice: parseFloat(r.entryReferencePrice as any) || 0,
+      tPlus1Return: r.tPlus1Return ? parseFloat(r.tPlus1Return as any) : undefined,
+      tPlus5Return: r.tPlus5Return ? parseFloat(r.tPlus5Return as any) : undefined,
+      tPlus20Return: r.tPlus20Return ? parseFloat(r.tPlus20Return as any) : undefined,
+      maxDrawdown: r.maxDrawdown ? parseFloat(r.maxDrawdown as any) : undefined,
+    })) as any[];
   }
 }

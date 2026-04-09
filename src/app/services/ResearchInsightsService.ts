@@ -17,12 +17,20 @@ export interface RuleInsight extends RuleBreakdown {
   confidenceLevel: 'High' | 'Medium' | 'Low';
 }
 
+export interface ThesisInsight extends ThesisBreakdown {
+  confidenceLevel: 'High' | 'Medium' | 'Low';
+}
+
+export interface ActionInsight extends ActionBreakdown {
+  confidenceLevel: 'High' | 'Medium' | 'Low';
+}
+
 export interface ResearchInsights {
   runId: string;
   topEffectiveRules: RuleInsight[];
   lowEffectiveRules: RuleInsight[];
-  thesisPerformance: ThesisBreakdown[];
-  actionPerformance: ActionBreakdown[];
+  thesisPerformance: ThesisInsight[];
+  actionPerformance: ActionInsight[];
   optimizationSuggestions: OptimizationInsight[];
 }
 
@@ -90,12 +98,17 @@ export class ResearchInsightsService {
     });
 
     // 2. 分析論點狀態
-    thesisBreakdown.forEach(t => {
-      if (t.status === 'thesis_met' && t.accuracy < 0.5) {
+    const thesisWithConfidence: ThesisInsight[] = thesisBreakdown.map(t => ({
+      ...t,
+      confidenceLevel: this.getConfidence(t.evaluableCount)
+    }));
+
+    thesisWithConfidence.forEach(t => {
+      if (t.evaluableCount >= this.MIN_SAMPLES && t.status === 'thesis_met' && t.accuracy < 0.5) {
         suggestions.push({
           type: 'THESIS',
           id: t.status,
-          finding: '「論點達成」狀態下的勝率低於 50%。',
+          finding: `「論點達成」勝率低 (${(t.accuracy * 100).toFixed(1)}%)，樣本數 ${t.evaluableCount}。`,
           recommendation: '論點判定過於寬鬆，建議調整權重。',
           severity: 'medium'
         });
@@ -103,12 +116,17 @@ export class ResearchInsightsService {
     });
 
     // 3. 分析決策動作
-    actionBreakdown.forEach(a => {
-      if (a.action === 'BUY' && a.avgReturn < 0) {
+    const actionWithConfidence: ActionInsight[] = actionBreakdown.map(a => ({
+      ...a,
+      confidenceLevel: this.getConfidence(a.evaluableCount)
+    }));
+
+    actionWithConfidence.forEach(a => {
+      if (a.evaluableCount >= this.MIN_SAMPLES && a.action === 'BUY' && a.avgReturn < 0) {
         suggestions.push({
           type: 'ACTION',
           id: a.action,
-          finding: '買進動作的平均報酬為負。',
+          finding: `買進動作平均報酬為負 (${(a.avgReturn * 100).toFixed(2)}%)，樣本數 ${a.evaluableCount}。`,
           recommendation: '應檢查進場過濾規則是否失效。',
           severity: 'high'
         });
@@ -119,8 +137,8 @@ export class ResearchInsightsService {
       runId,
       topEffectiveRules: topRules,
       lowEffectiveRules: lowRules,
-      thesisPerformance: [...thesisBreakdown].sort((a, b) => b.accuracy - a.accuracy),
-      actionPerformance: [...actionBreakdown].sort((a, b) => b.accuracy - a.accuracy),
+      thesisPerformance: thesisWithConfidence.sort((a, b) => b.accuracy - a.accuracy),
+      actionPerformance: actionWithConfidence.sort((a, b) => b.accuracy - a.accuracy),
       optimizationSuggestions: suggestions
     };
   }
