@@ -90,4 +90,4 @@ jobs:
           DB_PASSWORD: research_pass
           DB_NAME: tw_stock_research
           REDIS_HOST: localhost
-          FINMIND_API_TOKEN: \${{ secrets.FINMIND_API_TOKEN }}
+          FINMIND_API_TOKEN: ${{ secrets.FINMIND_API_TOKEN }}

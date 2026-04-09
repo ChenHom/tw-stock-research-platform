@@ -34,8 +34,10 @@ async function main() {
   // 1. 迭代日期執行研究與回填
   const current = new Date(startDate);
   const runIds: string[] = [];
+  let expectedDays = 0;
 
   while (current <= endDate) {
+    expectedDays++;
     const dateStr = current.toISOString().split('T')[0];
     console.log(`\n--- 處理日期: ${dateStr} ---`);
 
@@ -58,19 +60,15 @@ async function main() {
     current.setDate(current.getDate() + 1);
   }
 
-  if (runIds.length === 0) {
-    console.error('❌ 失敗: 未產出任何研究任務。');
-    process.exit(1);
-  }
-
   console.log('\n===========================================');
   console.log('📊 執行聚合分析與驗收斷言');
   console.log('===========================================');
 
   // 2. 獲取聚合績效數據
-  const [stats, ruleBreakdown] = await Promise.all([
+  const [stats, ruleBreakdown, thesisBreakdown] = await Promise.all([
     perfService.getBatchPerformance(runIds),
-    perfService.getBatchRuleBreakdown(runIds)
+    perfService.getBatchRuleBreakdown(runIds),
+    perfService.getBatchThesisBreakdown(runIds)
   ]);
 
   if (!stats) {
@@ -84,9 +82,9 @@ async function main() {
   // --- 驗收斷言 (Assertions) ---
   console.log('\n[批次驗收斷言]');
 
-  // 1. 任務數量需符合預期 (至少要大於 0)
-  if (runIds.length === 0) {
-    console.error('❌ 失敗: 任務數量為 0');
+  // 1. 任務數量需符合預期天數
+  if (runIds.length !== expectedDays) {
+    console.error(`❌ 失敗: 預期產出 ${expectedDays} 天的研究任務，但實際僅產出 ${runIds.length} 個。`);
     process.exit(1);
   }
 
@@ -96,12 +94,12 @@ async function main() {
     process.exit(1);
   }
 
-  // 3. 確保至少有一項規則樣本數達到統計意義 (MIN_SAMPLES = 10)
-  const hitsThreshold = ruleBreakdown.some(r => r.evaluableCount >= 10);
+  // 3. 確保至少有一項規則或論點樣本數達到統計意義 (MIN_SAMPLES = 10)
+  const hitsThreshold = ruleBreakdown.some(r => r.evaluableCount >= 10) || thesisBreakdown.some(t => t.evaluableCount >= 10);
   if (!hitsThreshold) {
-    console.warn('⚠️ 警告: 目前尚無任何規則樣本數達到 10 筆，洞察建議可能不具統計意義。');
+    console.warn('⚠️ 警告: 目前尚無任何規則或論點樣本數達到 10 筆，洞察建議可能不具統計意義。');
   } else {
-    console.log('✅ 統計門檻: 已有規則達到 10 筆以上樣本。');
+    console.log('✅ 統計門檻: 已有規則或論點達到 10 筆以上樣本。');
   }
 
   console.log('\n[Step 3] 產出聚合績效報表 (Performance Range)...');
