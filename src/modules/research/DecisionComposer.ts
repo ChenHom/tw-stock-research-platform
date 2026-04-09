@@ -7,6 +7,7 @@ export interface DecisionComposerInput {
   ruleResults: RuleResult[];
   thesisStatus: ThesisStatus | 'none'; // 支持 none
   valuationGap?: number; // upside/downside percentage
+  features?: any; // 加入 features 用於摘要產生
 }
 
 export class DecisionComposer {
@@ -93,17 +94,28 @@ export class DecisionComposer {
     
     if (thesis === 'none') parts.push('[無論點支撐]');
     
-    if (action === 'BLOCK') parts.push('觸發嚴格風險攔截。');
-    else if (thesis === 'broken') parts.push('投資論點已破壞，強制建議出場。');
+    if (action === 'BLOCK') {
+      const score = input?.features.totalScore ?? 0;
+      const mRisk = input?.features.marginRiskScore ?? 0;
+      const reasons = [];
+      if (score < 40) reasons.push('總分低於 40');
+      if (mRisk >= 80) reasons.push('風險分數過高');
+      parts.push(`觸發風險攔截 (${reasons.join('、') || '條件不符'})。`);
+    }
+    else if (thesis === 'broken') parts.push('投資論點已破壞，建議出場。');
     else if (action === 'EXIT' || action === 'SELL' || action === 'TRIM') parts.push(`主導規則 [${primaryName || '未知'}] 建議減碼或出場。`);
     else if (action === 'BUY' || action === 'ADD') parts.push(`主導規則 [${primaryName || '未知'}] 建議偏多操作。`);
     else if (action === 'WATCH') {
       const missing = [];
-      const score = input?.ruleResults[0] ? (input as any).valuationGap || 0 : 0; // Simplified
-      
-      // 解析未達標的可能原因
-      // 由於此處只有 ruleResults 和 thesisStatus，我們可以用一個通用的解釋：
-      parts.push(primaryName ? `主導規則 [${primaryName}] 顯示指標轉強，建議加入觀察。` : '目前無明確交易訊號，維持觀察。');
+      const features = input?.features;
+      if (features) {
+        if ((features.totalScore ?? 0) < 70) missing.push('評分達標');
+        if ((features.institutionalNet ?? 0) <= 0) missing.push('法人買盤');
+        const close = features.closePrice ?? 0;
+        const ma20 = features.ma20 ?? 0;
+        if (close <= ma20 && ma20 > 0) missing.push('均線支撐');
+      }
+      parts.push(primaryName ? `主導規則 [${primaryName}] 顯示指標轉強，但 ${missing.length > 0 ? '缺' + missing.join('、') : '動能不足'}，維持觀察。` : `目前無明確交易訊號，且缺${missing.join('、') || '動能'}，維持觀察。`);
     }
     else parts.push('目前無明確交易訊號。');
 

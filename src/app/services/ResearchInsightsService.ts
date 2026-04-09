@@ -13,10 +13,14 @@ export interface OptimizationInsight {
   severity: 'high' | 'medium' | 'low';
 }
 
+export interface RuleInsight extends RuleBreakdown {
+  confidenceLevel: 'High' | 'Medium' | 'Low';
+}
+
 export interface ResearchInsights {
   runId: string;
-  topEffectiveRules: RuleBreakdown[];
-  lowEffectiveRules: RuleBreakdown[];
+  topEffectiveRules: RuleInsight[];
+  lowEffectiveRules: RuleInsight[];
   thesisPerformance: ThesisBreakdown[];
   actionPerformance: ActionBreakdown[];
   optimizationSuggestions: OptimizationInsight[];
@@ -27,6 +31,14 @@ export interface ResearchInsights {
  * 負責從績效數據中挖掘模式，並給出具體的優化建議
  */
 export class ResearchInsightsService {
+  private readonly MIN_SAMPLES = 10;
+
+  private getConfidence(count: number): 'High' | 'Medium' | 'Low' {
+    if (count >= 30) return 'High';
+    if (count >= 10) return 'Medium';
+    return 'Low';
+  }
+
   analyze(
     runId: string,
     stats: PerformanceStats,
@@ -36,23 +48,45 @@ export class ResearchInsightsService {
   ): ResearchInsights {
     const suggestions: OptimizationInsight[] = [];
 
-    // 1. 分析規則有效性
-    const topRules = [...ruleBreakdown].sort((a, b) => b.accuracy - a.accuracy).slice(0, 3);
-    const lowRules = [...ruleBreakdown]
-      .filter(r => r.hitCount >= 2) 
+    // 為所有規則加上置信度標籤
+    const rulesWithConfidence: RuleInsight[] = ruleBreakdown.map(r => ({
+      ...r,
+      confidenceLevel: this.getConfidence(r.evaluableCount)
+    }));
+
+    // 1. 分析規則有效性 (過濾樣本數過少的規則)
+    const validRules = rulesWithConfidence.filter(r => r.evaluableCount >= this.MIN_SAMPLES);
+
+    const topRules = validRules
+      .filter(r => r.accuracy >= 0.6 && r.avgReturn > 0)
+      .sort((a, b) => b.accuracy - a.accuracy)
+      .slice(0, 3);
+
+    const lowRules = validRules
+      .filter(r => r.accuracy < 0.5)
       .sort((a, b) => a.accuracy - b.accuracy)
       .slice(0, 3);
 
+    // 樣本不足提示
+    const insufficientRules = rulesWithConfidence.filter(r => r.evaluableCount > 0 && r.evaluableCount < this.MIN_SAMPLES);
+    if (insufficientRules.length > 0 && topRules.length === 0 && lowRules.length === 0) {
+       suggestions.push({
+        type: 'RULE',
+        id: 'insufficient_samples',
+        finding: `多數規則可評估樣本數不足 ${this.MIN_SAMPLES}。`,
+        recommendation: '建議累積更多交易日或擴大候選池後再進行規則優化。',
+        severity: 'low'
+      });
+    }
+
     lowRules.forEach(r => {
-      if (r.accuracy < 0.4) {
-        suggestions.push({
-          type: 'RULE',
-          id: r.ruleId,
-          finding: `規則命中率極低 (${(r.accuracy * 100).toFixed(1)}%)，樣本數 ${r.hitCount}。`,
-          recommendation: '建議重新審視條件或暫時降權。',
-          severity: 'high'
-        });
-      }
+      suggestions.push({
+        type: 'RULE',
+        id: r.ruleId,
+        finding: `規則命中率低 (${(r.accuracy * 100).toFixed(1)}%)，樣本數 ${r.evaluableCount}。`,
+        recommendation: '建議重新審視條件或暫時降權。',
+        severity: 'high'
+      });
     });
 
     // 2. 分析論點狀態

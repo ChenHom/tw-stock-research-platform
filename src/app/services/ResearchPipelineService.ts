@@ -91,7 +91,7 @@ export class ResearchPipelineService {
       if (featureSet.totalScore >= 70) {
         activeThesis = this.deps.thesisTracker.createThesis({
           stockId: input.stockId,
-          statement: '系統生成：多方基本面與籌碼面強勢',
+          statement: '系統生成：基本面與籌碼面強勢',
           direction: 'long',
           evidence: [],
           convictionScore: 80
@@ -105,38 +105,22 @@ export class ResearchPipelineService {
           convictionScore: 30
         });
       } else {
-        // 分數平庸，建立觀察論點
         activeThesis = this.deps.thesisTracker.createThesis({
           stockId: input.stockId,
-          statement: '系統生成：動能平庸，維持觀察',
-          direction: 'long', // 預設用 long 觀察
+          statement: '系統生成：動能平庸',
+          direction: 'long',
           evidence: [],
           convictionScore: 50
         });
       }
     }
 
-    // 3. 評估論點狀態
+    // 3. 評估論點狀態 (依分數映射狀態)
     let thesisStatus: import('../../core/types/common.js').ThesisStatus | 'none' = 'none';
     if (activeThesis) {
-      // 依據分數調整狀態，確保不全是 active
-      if (featureSet.totalScore < 40 && activeThesis.direction !== 'short') {
-        thesisStatus = 'broken';
-      } else if (featureSet.totalScore >= 40 && featureSet.totalScore < 70 && activeThesis.direction === 'long') {
-        thesisStatus = 'weakened';
-      } else {
-        thesisStatus = this.deps.thesisTracker.evaluateStatus(activeThesis, {
-          stockId: input.stockId,
-          asOf: input.tradeDate,
-          features: featureSet,
-          thesis: {
-            id: activeThesis.thesisId,
-            version: activeThesis.version,
-            status: activeThesis.status,
-            direction: activeThesis.direction
-          }
-        });
-      }
+      if (featureSet.totalScore >= 70) thesisStatus = 'active';
+      else if (featureSet.totalScore < 40) thesisStatus = 'broken';
+      else thesisStatus = 'weakened';
     }
 
     // 4. 執行規則引擎

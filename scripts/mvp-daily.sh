@@ -11,7 +11,7 @@ echo "🚀 啟動 MVP 每日測試任務 | 日期: $DATE"
 echo "🎯 測試樣本: $STOCKS"
 echo "==========================================="
 
-export STORAGE_TYPE=postgres
+export STORAGE_TYPE=${STORAGE_TYPE:-postgres}
 
 echo -e "\n[Step 1/5] 執行深度研究 (Candidates)..."
 npm run candidates -- $DATE --stocks=$STOCKS

@@ -12,14 +12,14 @@ export class InsightsReportGenerator {
     const ruleSection = [
       `## 1. 規則效能排行`,
       '### ✅ 高效規則',
-      '| 規則 ID | 準確率 | 樣本數 |',
-      '| :--- | :---: | :---: |',
-      ...insights.topEffectiveRules.map(r => `| \`${r.ruleId}\` | **${(r.accuracy * 100).toFixed(1)}%** | ${r.hitCount} |`),
+      '| 規則 ID | 準確率 | 樣本數 | 置信度 |',
+      '| :--- | :---: | :---: | :---: |',
+      ...insights.topEffectiveRules.map(r => `| \`${r.ruleId}\` | **${(r.accuracy * 100).toFixed(1)}%** | ${r.evaluableCount} | ${r.confidenceLevel} |`),
       '',
       '### ⚠️ 低效規則',
-      '| 規則 ID | 準確率 | 樣本數 |',
-      '| :--- | :---: | :---: |',
-      ...insights.lowEffectiveRules.map(r => `| \`${r.ruleId}\` | ${(r.accuracy * 100).toFixed(1)}% | ${r.hitCount} |`),
+      '| 規則 ID | 準確率 | 樣本數 | 置信度 |',
+      '| :--- | :---: | :---: | :---: |',
+      ...insights.lowEffectiveRules.map(r => `| \`${r.ruleId}\` | ${(r.accuracy * 100).toFixed(1)}% | ${r.evaluableCount} | ${r.confidenceLevel} |`),
       ''
     ];
 

@@ -147,16 +147,16 @@ database/migrations/     # SQL migration
 
 ### 快取層
 可用環境變數切換：
-- `CACHE_TYPE=in-memory`
 - `CACHE_TYPE=redis`
+- `CACHE_TYPE=in-memory`
 
 預設為：
-- `in-memory`
+- `redis` (需準備對應服務，若無 Redis 請手動設定為 `in-memory`)
 
 ### 儲存層
 可用環境變數切換：
-- `STORAGE_TYPE=in-memory`
 - `STORAGE_TYPE=postgres`
+- `STORAGE_TYPE=in-memory`
 
 預設為：
 - `in-memory`
@@ -175,15 +175,20 @@ npm install
 npm run validate
 ```
 
-### 3. 套用資料庫 migration
-若要走 PostgreSQL：
+### 3. 資料庫維運指令 (PostgreSQL 模式)
+初始化與套用 migration：
 ```bash
 npm run db:up
 ```
 
-### 4. 若要回滾 migration
+清空所有研究數據 (保留表格結構)：
 ```bash
-npm run db:down
+npm run db:clear
+```
+
+完全重置資料庫 (刪除所有表並重新建置)：
+```bash
+npm run db:reset
 ```
 
 ---
@@ -230,43 +235,29 @@ npm run insights <runId>
 
 ---
 
-## MVP 測試建議流程
+## 自動化與 MVP 測試
 
-目前最適合做的是 **MVP 流程測試**，不是直接正式上線驗收。
+專案已具備端到端 (E2E) 的測試能力，可用來驗證功能、儲存與績效分析。
 
-### In-memory 路徑
+### 執行單一 Smoke Test (自動化驗收)
+會自動清空資料庫並連貫執行全鏈路，且包含資料層斷言 (Data-layer assertions)：
 ```bash
-npm run candidates
-npm run run-history latest
-npm run outcomes latest
-npm run performance latest
-npm run insights latest
+./scripts/e2e-smoke-test.sh
 ```
 
-### PostgreSQL 路徑
-先設定：
+### 執行每日例行 MVP 測試
 ```bash
-export STORAGE_TYPE=postgres
-npm run db:up
-```
-
-再跑：
-```bash
-npm run candidates
-npm run run-history latest
-npm run outcomes latest
-npm run performance latest
-npm run insights latest
+./scripts/mvp-daily.sh <YYYY-MM-DD>
 ```
 
 ### 測試時要確認
 - 候選股能正常產出
-- 單檔研究能正常輸出決策
+- 單檔研究能正常輸出決策 (帶有具體的未達標條件說明)
 - run 歷史能查回
-- outcome 能回填
-- performance 能統計
-- insights 能產出可讀的建議
-- 沒資料時 CLI 不會直接炸掉
+- outcome 能自動偏移節假日並回填真實價格
+- performance 能統計正確的分母與報酬率
+- insights 能根據樣本數給出信賴度與建議
+- 沒資料時 CLI 會顯示 N/A 而不會炸掉
 
 ---
 

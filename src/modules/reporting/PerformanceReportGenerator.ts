@@ -22,6 +22,7 @@ export class PerformanceReportGenerator {
       '',
       `## 1. 整體概況`,
       `- 總研究個股數: ${stats.totalCount}`,
+      `- 可評估樣本數: ${stats.evaluableCount} (有實際行情回填者)`,
       `- 方向預測正確數: ${stats.correctDirectionCount}`,
       `- **綜合準確率: ${(stats.accuracy * 100).toFixed(1)}%**`,
       `- **5日平均報酬率: ${formatRet(stats.averageReturn5D as any)}**`,
@@ -30,37 +31,37 @@ export class PerformanceReportGenerator {
 
     const actionHeader = [
       `## 2. 決策動作拆解`,
-      '| 動作 | 樣本數 | 準確率 | 平均報酬 (5D) |',
-      '| :--- | :---: | :---: | :---: |'
+      '| 動作 | 樣本數 | 可評估數 | 準確率 | 平均報酬 (5D) |',
+      '| :--- | :---: | :---: | :---: | :---: |'
     ];
     const actionRows = actionBreakdown.map(b => {
       const acc = (b.accuracy * 100).toFixed(1) + '%';
       const ret = formatRet(b.avgReturn as any);
-      return `| **${b.action}** | ${b.count} | ${acc} | ${ret} |`;
+      return `| **${b.action}** | ${b.count} | ${b.evaluableCount} | ${acc} | ${ret} |`;
     });
 
     const ruleHeader = [
       '',
       `## 3. 判斷規則 (Rules) 成效`,
-      '| 規則 ID | 觸發次數 | 準確率 | 平均報酬 (5D) |',
-      '| :--- | :---: | :---: | :---: |'
+      '| 規則 ID | 觸發次數 | 可評估數 | 準確率 | 平均報酬 (5D) |',
+      '| :--- | :---: | :---: | :---: | :---: |'
     ];
     const ruleRows = ruleBreakdown.map(b => {
       const acc = (b.accuracy * 100).toFixed(1) + '%';
       const ret = formatRet(b.avgReturn as any);
-      return `| \`${b.ruleId}\` | ${b.hitCount} | ${acc} | ${ret} |`;
+      return `| \`${b.ruleId}\` | ${b.hitCount} | ${b.evaluableCount} | ${acc} | ${ret} |`;
     });
 
     const thesisHeader = [
       '',
       `## 4. 論點狀態 (Thesis) 成效`,
-      '| 狀態 | 樣本數 | 準確率 | 平均報酬 (5D) |',
-      '| :--- | :---: | :---: | :---: |'
+      '| 狀態 | 樣本數 | 可評估數 | 準確率 | 平均報酬 (5D) |',
+      '| :--- | :---: | :---: | :---: | :---: |'
     ];
     const thesisRows = thesisBreakdown.map(b => {
       const acc = (b.accuracy * 100).toFixed(1) + '%';
       const ret = formatRet(b.avgReturn as any);
-      return `| **${b.status}** | ${b.count} | ${acc} | ${ret} |`;
+      return `| **${b.status}** | ${b.count} | ${b.evaluableCount} | ${acc} | ${ret} |`;
     });
 
     return [
