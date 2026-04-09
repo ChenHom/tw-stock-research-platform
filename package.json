@@ -17,6 +17,7 @@
     "outcomes": "tsx src/app/commands/run-outcomes.ts",
     "performance": "tsx src/app/commands/run-performance.ts",
     "insights": "tsx src/app/commands/run-insights.ts",
+    "test:e2e": "tsx tests/e2e-smoke.ts",
     "dev:tree": "node ./src/app/print-tree.js",
     "prepare": "husky"
   },

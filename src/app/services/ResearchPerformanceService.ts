@@ -41,19 +41,18 @@ export class ResearchPerformanceService {
   ) {}
 
   /**
-   * 計算特定研究任務的整體成效統計
+   * 計算一組研究任務的整體成效統計 (用於批次分析)
    */
-  async getRunPerformance(runId: string): Promise<PerformanceStats | null> {
-    const outcomes = await this.outcomeRepo.findByRunId(runId);
-    if (outcomes.length === 0) return null;
+  async getBatchPerformance(runIds: string[]): Promise<PerformanceStats | null> {
+    const allOutcomes = (await Promise.all(runIds.map(id => this.outcomeRepo.findByRunId(id)))).flat();
+    if (allOutcomes.length === 0) return null;
 
-    const validOutcomes = outcomes; 
-    const evaluableOutcomes = validOutcomes.filter(o => typeof o.isCorrectDirection === 'boolean');
+    const evaluableOutcomes = allOutcomes.filter(o => typeof o.isCorrectDirection === 'boolean');
     const correct = evaluableOutcomes.filter(o => o.isCorrectDirection === true).length;
     
     let total5DReturn = 0;
     let validReturnCount = 0;
-    for (const o of validOutcomes) {
+    for (const o of allOutcomes) {
       if (typeof o.tPlus5Return === 'number' && Number.isFinite(o.tPlus5Return)) {
         total5DReturn += o.tPlus5Return;
         validReturnCount++;
@@ -61,7 +60,7 @@ export class ResearchPerformanceService {
     }
 
     return {
-      totalCount: validOutcomes.length,
+      totalCount: allOutcomes.length,
       evaluableCount: evaluableOutcomes.length,
       correctDirectionCount: correct,
       accuracy: evaluableOutcomes.length > 0 ? correct / evaluableOutcomes.length : 0,
@@ -71,14 +70,21 @@ export class ResearchPerformanceService {
   }
 
   /**
-   * 按決策動作拆解成效 (BUY/SELL/WATCH 等)
+   * 計算特定研究任務的整體成效統計
    */
-  async getActionBreakdown(runId: string): Promise<ActionBreakdown[]> {
-    const outcomes = await this.outcomeRepo.findByRunId(runId);
-    if (outcomes.length === 0) return [];
+  async getRunPerformance(runId: string): Promise<PerformanceStats | null> {
+    return this.getBatchPerformance([runId]);
+  }
 
-    const actionGroups = new Map<string, typeof outcomes>();
-    for (const o of outcomes) {
+  /**
+   * 按決策動作拆解成效 (用於批次分析)
+   */
+  async getBatchActionBreakdown(runIds: string[]): Promise<ActionBreakdown[]> {
+    const allOutcomes = (await Promise.all(runIds.map(id => this.outcomeRepo.findByRunId(id)))).flat();
+    if (allOutcomes.length === 0) return [];
+
+    const actionGroups = new Map<string, typeof allOutcomes>();
+    for (const o of allOutcomes) {
       if (!actionGroups.has(o.action)) actionGroups.set(o.action, []);
       actionGroups.get(o.action)!.push(o);
     }
@@ -105,18 +111,30 @@ export class ResearchPerformanceService {
   }
 
   /**
-   * 獲取規則成效分析 (P0: 核心分析)
+   * 按決策動作拆解成效 (BUY/SELL/WATCH 等)
    */
-  async getRuleBreakdown(runId: string): Promise<RuleBreakdown[]> {
-    const outcomes = await this.outcomeRepo.findByRunId(runId);
-    const results = await this.runRepo.getRunResults(runId);
-    if (outcomes.length === 0 || results.length === 0) return [];
+  async getActionBreakdown(runId: string): Promise<ActionBreakdown[]> {
+    return this.getBatchActionBreakdown([runId]);
+  }
 
-    const outcomeMap = new Map(outcomes.map(o => [o.stockId, o]));
+  /**
+   * 獲取規則成效分析 (用於批次分析)
+   */
+  async getBatchRuleBreakdown(runIds: string[]): Promise<RuleBreakdown[]> {
+    const allOutcomes = (await Promise.all(runIds.map(id => this.outcomeRepo.findByRunId(id)))).flat();
+    const allResults = (await Promise.all(runIds.map(id => this.runRepo.getRunResults(id)))).flat();
+    if (allOutcomes.length === 0 || allResults.length === 0) return [];
+
+    const outcomeMap = new Map();
+    // 註：批次分析時，不同 run 可能有相同的 stockId，因此需要複合 key
+    for (const o of allOutcomes) {
+      outcomeMap.set(`${o.runId}-${o.stockId}`, o);
+    }
+
     const ruleStats = new Map<string, { hit: number; evaluable: number; correct: number; returns: number[] }>();
 
-    for (const res of results) {
-      const outcome = outcomeMap.get(res.stockId);
+    for (const res of allResults) {
+      const outcome = outcomeMap.get(`${res.runId}-${res.stockId}`);
       if (!outcome || !res.ruleResults) continue;
 
       const triggeredRules = res.ruleResults.filter((r: any) => r.triggered === true);
@@ -147,18 +165,29 @@ export class ResearchPerformanceService {
   }
 
   /**
-   * 獲取論點狀態成效分析 (P0: 核心分析)
+   * 獲取規則成效分析 (P0: 核心分析)
    */
-  async getThesisBreakdown(runId: string): Promise<ThesisBreakdown[]> {
-    const outcomes = await this.outcomeRepo.findByRunId(runId);
-    const results = await this.runRepo.getRunResults(runId);
-    if (outcomes.length === 0 || results.length === 0) return [];
+  async getRuleBreakdown(runId: string): Promise<RuleBreakdown[]> {
+    return this.getBatchRuleBreakdown([runId]);
+  }
 
-    const outcomeMap = new Map(outcomes.map(o => [o.stockId, o]));
+  /**
+   * 獲取論點狀態成效分析 (用於批次分析)
+   */
+  async getBatchThesisBreakdown(runIds: string[]): Promise<ThesisBreakdown[]> {
+    const allOutcomes = (await Promise.all(runIds.map(id => this.outcomeRepo.findByRunId(id)))).flat();
+    const allResults = (await Promise.all(runIds.map(id => this.runRepo.getRunResults(id)))).flat();
+    if (allOutcomes.length === 0 || allResults.length === 0) return [];
+
+    const outcomeMap = new Map();
+    for (const o of allOutcomes) {
+      outcomeMap.set(`${o.runId}-${o.stockId}`, o);
+    }
+
     const statusStats = new Map<string, { count: number; evaluable: number; correct: number; returns: number[] }>();
 
-    for (const res of results) {
-      const outcome = outcomeMap.get(res.stockId);
+    for (const res of allResults) {
+      const outcome = outcomeMap.get(`${res.runId}-${res.stockId}`);
       if (!outcome || !res.thesisStatus) continue;
 
       const status = res.thesisStatus;
@@ -183,5 +212,12 @@ export class ResearchPerformanceService {
       accuracy: s.evaluable > 0 ? s.correct / s.evaluable : 0,
       avgReturn: s.returns.length > 0 ? s.returns.reduce((a, b) => a + b, 0) / s.returns.length : undefined as any
     })).sort((a, b) => b.accuracy - a.accuracy);
+  }
+
+  /**
+   * 獲取論點狀態成效分析 (P0: 核心分析)
+   */
+  async getThesisBreakdown(runId: string): Promise<ThesisBreakdown[]> {
+    return this.getBatchThesisBreakdown([runId]);
   }
 }

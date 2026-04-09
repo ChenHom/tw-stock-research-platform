@@ -48,9 +48,9 @@ if [ "$EVAL_COUNT" -lt 4 ]; then
   exit 1
 fi
 
-# 3. 5D 報酬可計算需 >= 1 (核心檢驗: 確保有回填到資料)
-if [ "$RET_COUNT" -lt 1 ]; then
-  echo "❌ 失敗: 5D 報酬覆蓋筆數預期 >= 1，實際為 $RET_COUNT (這表示回填機制失效或無後續行情資料)"
+# 3. 5D 報酬可計算需 >= 4 (核心檢驗: 確保有回填到資料)
+if [ "$RET_COUNT" -lt 4 ]; then
+  echo "❌ 失敗: 5D 報酬覆蓋筆數預期 >= 4，實際為 $RET_COUNT (這表示回填機制失效或無後續行情資料)"
   exit 1
 fi
 

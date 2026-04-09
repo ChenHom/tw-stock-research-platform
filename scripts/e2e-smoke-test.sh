@@ -13,6 +13,6 @@ export STORAGE_TYPE=${STORAGE_TYPE:-postgres}
 export CACHE_TYPE=${CACHE_TYPE:-redis}
 
 # 確認依賴服務可用 (這部分交由 Node.js 執行期處理連線池，此處僅呼叫 TypeScript 腳本)
-node --test --import tsx tests/e2e-smoke.ts
+npm run test:e2e
 
 echo -e "\n✅ E2E Smoke Test 圓滿成功，MVP 閉環與資料品質達標！"

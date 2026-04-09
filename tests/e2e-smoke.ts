@@ -25,10 +25,10 @@ async function run() {
     if (results.length !== 5) throw new Error(`預期 5 筆 result，實際 ${results.length} 筆`);
 
     const outcomes = await sql`SELECT * FROM research_outcomes WHERE run_id = ${runId}`;
-    if (outcomes.length < 3) throw new Error(`預期大於等於 3 筆 outcome，實際 ${outcomes.length} 筆`);
+    if (outcomes.length < 4) throw new Error(`預期大於等於 4 筆 outcome，實際 ${outcomes.length} 筆`);
 
     const validReturns = outcomes.filter((o: any) => o.t_plus_5_return !== null);
-    if (validReturns.length === 0) throw new Error('所有 T+5 報酬皆為空，回填可能失敗或日期有誤');
+    if (validReturns.length < 4) throw new Error(`預期大於等於 4 筆 T+5 報酬，實際 ${validReturns.length} 筆，回填可能失敗或日期有誤`);
 
     console.log('✅ 資料層斷言全數通過！');
 
