@@ -129,7 +129,7 @@ export class PostgresResearchOutcomeRepository implements ResearchOutcomeReposit
       ) VALUES (
         ${outcome.runId}, ${outcome.stockId}, ${outcome.action}, ${outcome.entryReferencePrice},
         ${outcome.tPlus1Return ?? null}, ${outcome.tPlus5Return ?? null}, ${outcome.tPlus20Return ?? null},
-        ${outcome.maxDrawdown ?? null}, ${outcome.isCorrectDirection ?? null}
+        ${outcome.maxDrawdown ?? null}, ${outcome.isCorrectDirection === undefined ? null : outcome.isCorrectDirection}
       )
       ON CONFLICT (run_id, stock_id) DO UPDATE SET
         t_plus_1_return = EXCLUDED.t_plus_1_return,
