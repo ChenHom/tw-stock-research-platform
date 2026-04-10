@@ -144,7 +144,9 @@ export class ResearchPipelineService {
       asOf: input.tradeDate,
       ruleResults,
       thesisStatus: thesisStatus,
-      valuationGap: undefined
+      valuationGap: undefined,
+      features: featureSet,
+      hasPosition: input.hasPosition
     });
 
     // 6. 持久化

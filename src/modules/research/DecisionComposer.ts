@@ -8,6 +8,7 @@ export interface DecisionComposerInput {
   thesisStatus: ThesisStatus | 'none'; // 支持 none
   valuationGap?: number; // upside/downside percentage
   features?: any; // 加入 features 用於摘要產生
+  hasPosition?: boolean; // 預設為 false
 }
 
 export class DecisionComposer {
@@ -30,6 +31,7 @@ export class DecisionComposer {
    */
   compose(input: DecisionComposerInput): FinalDecision {
     const { ruleResults, thesisStatus, valuationGap } = input;
+    const hasPosition = input.hasPosition ?? false;
     const triggered = ruleResults.filter(r => r.triggered);
     
     // 1. 分類規則
@@ -44,12 +46,29 @@ export class DecisionComposer {
     const primaryRule = sortedTriggered[0];
     let finalAction: RuleAction = primaryRule?.action || 'WATCH';
 
-    // 3. 論點強制覆寫
+    // 3. 論點強制覆寫 (需考量持倉狀態)
     if (thesisStatus === 'broken' && this.actionPriority[finalAction] < this.actionPriority['EXIT']) {
-      finalAction = 'EXIT';
+      finalAction = hasPosition ? 'EXIT' : 'BLOCK';
     }
 
-    // 4. 計算綜合置信度
+    // 4. 持倉狀態防呆 (P0: 確保研究模式與持倉模式 Action 語意正確)
+    if (!hasPosition) {
+      // 候選研究模式：不應出現 EXIT/SELL/TRIM，轉換為 BLOCK
+      if (['EXIT', 'SELL', 'TRIM'].includes(finalAction)) {
+        finalAction = 'BLOCK';
+      }
+      // 不應出現 ADD/HOLD，轉換為 WATCH
+      else if (['ADD', 'HOLD'].includes(finalAction)) {
+        finalAction = 'WATCH';
+      }
+    } else {
+      // 持倉管理模式：若無買入訊號且論點尚可，預設為 HOLD 而非 WATCH
+      if (finalAction === 'WATCH' && thesisStatus !== 'broken') {
+        finalAction = 'HOLD';
+      }
+    }
+
+    // 5. 計算綜合置信度
     let confidence = thesisStatus === 'none' ? 0.4 : 0.6;
     
     if (thesisStatus === 'weakened') confidence -= 0.15;
@@ -66,7 +85,7 @@ export class DecisionComposer {
 
     if (primaryRule?.severity === 'critical') confidence += 0.1;
 
-    // 5. 產出摘要理由
+    // 6. 產出摘要理由
     const summary = this.generateDetailedSummary(
       finalAction, 
       thesisStatus, 
@@ -91,31 +110,38 @@ export class DecisionComposer {
 
   private generateDetailedSummary(action: RuleAction, thesis: ThesisStatus | 'none', buys: number, exits: number, primaryName?: string, input?: DecisionComposerInput): string {
     const parts: string[] = [];
+    const features = input?.features;
     
     if (thesis === 'none') parts.push('[無論點支撐]');
     
     if (action === 'BLOCK') {
-      const score = input?.features.totalScore ?? 0;
-      const mRisk = input?.features.marginRiskScore ?? 0;
+      const score = features?.totalScore ?? 0;
+      const mRisk = features?.marginRiskScore ?? 0;
       const reasons = [];
+      if (thesis === 'broken') reasons.push('投資論點已破壞');
       if (score < 40) reasons.push('總分低於 40');
       if (mRisk >= 80) reasons.push('風險分數過高');
+      if (primaryName && !reasons.includes(primaryName)) reasons.push(primaryName);
       parts.push(`觸發風險攔截 (${reasons.join('、') || '條件不符'})。`);
     }
     else if (thesis === 'broken') parts.push('投資論點已破壞，建議出場。');
     else if (action === 'EXIT' || action === 'SELL' || action === 'TRIM') parts.push(`主導規則 [${primaryName || '未知'}] 建議減碼或出場。`);
-    else if (action === 'BUY' || action === 'ADD') parts.push(`主導規則 [${primaryName || '未知'}] 建議偏多操作。`);
+    else if (action === 'BUY' || action === 'ADD') {
+      const triggeredBuys = input?.ruleResults?.filter(r => r.triggered && (r.action === 'BUY' || r.action === 'ADD')).map(r => r.ruleName).join('、');
+      parts.push(`主導規則 [${primaryName || '未知'}] 建議偏多操作。`);
+      if (triggeredBuys) parts.push(`觸發條件: ${triggeredBuys}。`);
+    }
     else if (action === 'WATCH') {
       const missing = [];
-      const features = input?.features;
       if (features) {
-        if ((features.totalScore ?? 0) < 70) missing.push('評分達標');
+        if ((features.totalScore ?? 0) < 70) missing.push('評分達標(70+)');
         if ((features.institutionalNet ?? 0) <= 0) missing.push('法人買盤');
         const close = features.closePrice ?? 0;
         const ma20 = features.ma20 ?? 0;
         if (close <= ma20 && ma20 > 0) missing.push('均線支撐');
       }
-      parts.push(primaryName ? `主導規則 [${primaryName}] 顯示指標轉強，但 ${missing.length > 0 ? '缺' + missing.join('、') : '動能不足'}，維持觀察。` : `目前無明確交易訊號，且缺${missing.join('、') || '動能'}，維持觀察。`);
+      const missingStr = missing.length > 0 ? `缺${missing.join('、')}` : '動能不足';
+      parts.push(primaryName ? `主導規則 [${primaryName}] 顯示指標轉強，但${missingStr}，維持觀察。` : `目前無明確交易訊號，且${missingStr}，維持觀察。`);
     }
     else parts.push('目前無明確交易訊號。');
 

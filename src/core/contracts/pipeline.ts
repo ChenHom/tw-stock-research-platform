@@ -8,6 +8,7 @@ export interface RunResearchInput {
   tradeDate: string;
   accountTier: AccountTier;
   useCache?: boolean;
+  hasPosition?: boolean; // 預設為 false
 }
 
 export interface PipelineRawData {

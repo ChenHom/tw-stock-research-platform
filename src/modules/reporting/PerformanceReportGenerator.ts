@@ -81,6 +81,13 @@ export class PerformanceReportGenerator {
       ...thesisRows,
       '',
       '---',
+      '### 💡 準確率判定說明 (Success Metrics)',
+      '- **BUY / ADD**: 5日超額報酬 (Alpha) > 0% (即跑贏大盤)。',
+      '- **EXIT / SELL / BLOCK**: 5日超額報酬 (Alpha) < 0% (即跑輸大盤，避開弱勢股)。',
+      '- **WATCH**: 暫不列入準確率評分。',
+      '*註：若無大盤資料，則以絕對報酬率進行判定。*',
+      '',
+      '---',
       '*註：準確率計算基準為「當該規則/論點達成時，後續 5 日股價走勢方向與動作是否一致」。*'
     ].join('\n');
   }

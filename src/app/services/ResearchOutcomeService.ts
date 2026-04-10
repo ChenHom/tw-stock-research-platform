@@ -64,7 +64,7 @@ export class ResearchOutcomeService {
         tPlus1Return: t1Ret,
         tPlus5Return: t5Ret,
         tPlus20Return: t20Ret,
-        isCorrectDirection: this.judgeDirection(res.finalAction, t5Ret ?? t1Ret),
+        isCorrectDirection: this.judgeDirection(res.finalAction, t5Ret ?? t1Ret, (t5Ret !== undefined && baselineRet5D !== undefined) ? (t5Ret - baselineRet5D) : undefined),
         baselineReturn: baselineRet5D,
         alpha: (t5Ret !== undefined && baselineRet5D !== undefined) ? (t5Ret - baselineRet5D) : undefined
       };
@@ -105,11 +105,13 @@ export class ResearchOutcomeService {
     }
   }
 
-  private judgeDirection(action: string, ret?: number): boolean | undefined {
-    if (ret === undefined || !Number.isFinite(ret)) return undefined;
+  private judgeDirection(action: string, ret?: number, alpha?: number): boolean | undefined {
+    // 優先使用超額報酬 (Alpha) 判定，若無則回退至絕對報酬 (Ret)
+    const metric = alpha ?? ret;
+    if (metric === undefined || !Number.isFinite(metric)) return undefined;
 
-    if (['BUY', 'ADD'].includes(action)) return ret > 0;
-    if (['SELL', 'EXIT', 'TRIM', 'BLOCK'].includes(action)) return ret < 0;
+    if (['BUY', 'ADD'].includes(action)) return metric > 0;
+    if (['SELL', 'EXIT', 'TRIM', 'BLOCK'].includes(action)) return metric < 0;
 
     // WATCH 不具方向性，不計入勝率
     return undefined;

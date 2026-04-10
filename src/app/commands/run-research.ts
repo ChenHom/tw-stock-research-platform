@@ -6,8 +6,9 @@ import { ReportGenerator } from '../../modules/reporting/ReportGenerator.js';
 async function main() {
   const stockId = process.argv[2] || '2330';
   const tradeDate = process.argv[3] || toTaipeiDateString();
+  const hasPosition = process.argv.includes('--position');
 
-  console.log(`[CLI] 執行研究命令: ${stockId} @ ${tradeDate}`);
+  console.log(`[CLI] 執行研究命令: ${stockId} @ ${tradeDate} (持倉: ${hasPosition})`);
 
   const app = bootstrap();
   const reportGenerator = new ReportGenerator();
@@ -21,7 +22,8 @@ async function main() {
       stockId,
       tradeDate,
       accountTier: 'free',
-      useCache: true
+      useCache: true,
+      hasPosition
     }, budget);
 
     console.log('\n--- 1. 研究結果 (JSON) ---');

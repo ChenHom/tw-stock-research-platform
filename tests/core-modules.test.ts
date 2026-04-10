@@ -85,7 +85,8 @@ test('DecisionComposer: 應能處理買賣衝突並調整信心度', (t) => {
     stockId: '2330',
     asOf: '2026-04-06',
     ruleResults: results,
-    thesisStatus: 'active'
+    thesisStatus: 'active',
+    hasPosition: true
   });
 
   // 由於 TRIM (80) 優先於 BUY (60)，最終動作應為 TRIM

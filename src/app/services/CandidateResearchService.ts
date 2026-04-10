@@ -67,7 +67,8 @@ export class CandidateResearchService {
                 stockId: cand.stockId,
                 tradeDate: input.tradeDate,
                 accountTier,
-                useCache: true
+                useCache: true,
+                hasPosition: false // 候選研究必定無持倉
               }, budget);
 
               return {
