@@ -7,6 +7,8 @@ export interface PerformanceStats {
   accuracy: number;
   averageReturn5D: number;
   validReturnCount: number; // 新增：5D 報酬可計算筆數
+  averageBaselineReturn?: number; // 5D 大盤平均報酬
+  averageAlpha?: number;          // 5D 平均超額報酬
 }
 
 export interface ActionBreakdown {
@@ -24,6 +26,7 @@ export interface RuleBreakdown {
   correctCount: number;
   accuracy: number;
   avgReturn: number;
+  consistency?: number; // 穩定度 (0~1)，基於跨任務準確率變異數
 }
 
 export interface ThesisBreakdown {
@@ -32,6 +35,7 @@ export interface ThesisBreakdown {
   evaluableCount: number;
   accuracy: number;
   avgReturn: number;
+  consistency?: number; // 穩定度
 }
 
 export class ResearchPerformanceService {
@@ -51,11 +55,21 @@ export class ResearchPerformanceService {
     const correct = evaluableOutcomes.filter(o => o.isCorrectDirection === true).length;
     
     let total5DReturn = 0;
+    let totalBaselineReturn = 0;
+    let totalAlpha = 0;
     let validReturnCount = 0;
+    let validBaselineCount = 0;
+
     for (const o of allOutcomes) {
       if (typeof o.tPlus5Return === 'number' && Number.isFinite(o.tPlus5Return)) {
         total5DReturn += o.tPlus5Return;
         validReturnCount++;
+        
+        if (typeof o.baselineReturn === 'number' && Number.isFinite(o.baselineReturn)) {
+          totalBaselineReturn += o.baselineReturn;
+          totalAlpha += (o.alpha ?? 0);
+          validBaselineCount++;
+        }
       }
     }
 
@@ -65,7 +79,9 @@ export class ResearchPerformanceService {
       correctDirectionCount: correct,
       accuracy: evaluableOutcomes.length > 0 ? correct / evaluableOutcomes.length : 0,
       averageReturn5D: validReturnCount > 0 ? total5DReturn / validReturnCount : undefined as any,
-      validReturnCount: validReturnCount
+      validReturnCount: validReturnCount,
+      averageBaselineReturn: validBaselineCount > 0 ? totalBaselineReturn / validBaselineCount : undefined,
+      averageAlpha: validBaselineCount > 0 ? totalAlpha / validBaselineCount : undefined
     };
   }
 
@@ -131,7 +147,7 @@ export class ResearchPerformanceService {
       outcomeMap.set(`${o.runId}-${o.stockId}`, o);
     }
 
-    const ruleStats = new Map<string, { hit: number; evaluable: number; correct: number; returns: number[] }>();
+    const ruleStats = new Map<string, { hit: number; evaluable: number; correct: number; returns: number[]; perRunAccuracy: Map<string, { evaluable: number; correct: number }> }>();
 
     for (const res of allResults) {
       const outcome = outcomeMap.get(`${res.runId}-${res.stockId}`);
@@ -140,13 +156,23 @@ export class ResearchPerformanceService {
       const triggeredRules = res.ruleResults.filter((r: any) => r.triggered === true);
       for (const rule of triggeredRules) {
         if (!ruleStats.has(rule.ruleId)) {
-          ruleStats.set(rule.ruleId, { hit: 0, evaluable: 0, correct: 0, returns: [] });
+          ruleStats.set(rule.ruleId, { hit: 0, evaluable: 0, correct: 0, returns: [], perRunAccuracy: new Map() });
         }
         const s = ruleStats.get(rule.ruleId)!;
         s.hit += 1;
+        
+        if (!s.perRunAccuracy.has(res.runId)) {
+          s.perRunAccuracy.set(res.runId, { evaluable: 0, correct: 0 });
+        }
+        const runAcc = s.perRunAccuracy.get(res.runId)!;
+
         if (typeof outcome.isCorrectDirection === 'boolean') {
           s.evaluable += 1;
-          if (outcome.isCorrectDirection) s.correct += 1;
+          runAcc.evaluable += 1;
+          if (outcome.isCorrectDirection) {
+            s.correct += 1;
+            runAcc.correct += 1;
+          }
         }
         if (typeof outcome.tPlus5Return === 'number' && Number.isFinite(outcome.tPlus5Return)) {
           s.returns.push(outcome.tPlus5Return);
@@ -154,14 +180,28 @@ export class ResearchPerformanceService {
       }
     }
 
-    return Array.from(ruleStats.entries()).map(([ruleId, s]) => ({
-      ruleId,
-      hitCount: s.hit,
-      evaluableCount: s.evaluable,
-      correctCount: s.correct,
-      accuracy: s.evaluable > 0 ? s.correct / s.evaluable : 0,
-      avgReturn: s.returns.length > 0 ? s.returns.reduce((a, b) => a + b, 0) / s.returns.length : undefined as any
-    })).sort((a, b) => b.accuracy - a.accuracy);
+    return Array.from(ruleStats.entries()).map(([ruleId, s]) => {
+      const runAccs = Array.from(s.perRunAccuracy.values())
+        .filter(r => r.evaluable > 0)
+        .map(r => r.correct / r.evaluable);
+      
+      let consistency = 1;
+      if (runAccs.length > 1) {
+        const mean = runAccs.reduce((a, b) => a + b, 0) / runAccs.length;
+        const variance = runAccs.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / runAccs.length;
+        consistency = Math.max(0, 1 - Math.sqrt(variance) * 2); // 簡單定義：1 - 2*標準差
+      }
+
+      return {
+        ruleId,
+        hitCount: s.hit,
+        evaluableCount: s.evaluable,
+        correctCount: s.correct,
+        accuracy: s.evaluable > 0 ? s.correct / s.evaluable : 0,
+        avgReturn: s.returns.length > 0 ? s.returns.reduce((a, b) => a + b, 0) / s.returns.length : undefined as any,
+        consistency
+      };
+    }).sort((a, b) => b.accuracy - a.accuracy);
   }
 
   /**
@@ -184,7 +224,7 @@ export class ResearchPerformanceService {
       outcomeMap.set(`${o.runId}-${o.stockId}`, o);
     }
 
-    const statusStats = new Map<string, { count: number; evaluable: number; correct: number; returns: number[] }>();
+    const statusStats = new Map<string, { count: number; evaluable: number; correct: number; returns: number[]; perRunAccuracy: Map<string, { evaluable: number; correct: number }> }>();
 
     for (const res of allResults) {
       const outcome = outcomeMap.get(`${res.runId}-${res.stockId}`);
@@ -192,26 +232,50 @@ export class ResearchPerformanceService {
 
       const status = res.thesisStatus;
       if (!statusStats.has(status)) {
-        statusStats.set(status, { count: 0, evaluable: 0, correct: 0, returns: [] });
+        statusStats.set(status, { count: 0, evaluable: 0, correct: 0, returns: [], perRunAccuracy: new Map() });
       }
       const s = statusStats.get(status)!;
       s.count += 1;
+
+      if (!s.perRunAccuracy.has(res.runId)) {
+        s.perRunAccuracy.set(res.runId, { evaluable: 0, correct: 0 });
+      }
+      const runAcc = s.perRunAccuracy.get(res.runId)!;
+
       if (typeof outcome.isCorrectDirection === 'boolean') {
         s.evaluable += 1;
-        if (outcome.isCorrectDirection) s.correct += 1;
+        runAcc.evaluable += 1;
+        if (outcome.isCorrectDirection) {
+          s.correct += 1;
+          runAcc.correct += 1;
+        }
       }
       if (typeof outcome.tPlus5Return === 'number' && Number.isFinite(outcome.tPlus5Return)) {
         s.returns.push(outcome.tPlus5Return);
       }
     }
 
-    return Array.from(statusStats.entries()).map(([status, s]) => ({
-      status,
-      count: s.count,
-      evaluableCount: s.evaluable,
-      accuracy: s.evaluable > 0 ? s.correct / s.evaluable : 0,
-      avgReturn: s.returns.length > 0 ? s.returns.reduce((a, b) => a + b, 0) / s.returns.length : undefined as any
-    })).sort((a, b) => b.accuracy - a.accuracy);
+    return Array.from(statusStats.entries()).map(([status, s]) => {
+      const runAccs = Array.from(s.perRunAccuracy.values())
+        .filter(r => r.evaluable > 0)
+        .map(r => r.correct / r.evaluable);
+      
+      let consistency = 1;
+      if (runAccs.length > 1) {
+        const mean = runAccs.reduce((a, b) => a + b, 0) / runAccs.length;
+        const variance = runAccs.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / runAccs.length;
+        consistency = Math.max(0, 1 - Math.sqrt(variance) * 2);
+      }
+
+      return {
+        status,
+        count: s.count,
+        evaluableCount: s.evaluable,
+        accuracy: s.evaluable > 0 ? s.correct / s.evaluable : 0,
+        avgReturn: s.returns.length > 0 ? s.returns.reduce((a, b) => a + b, 0) / s.returns.length : undefined as any,
+        consistency
+      };
+    }).sort((a, b) => b.accuracy - a.accuracy);
   }
 
   /**

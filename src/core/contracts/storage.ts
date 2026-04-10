@@ -33,6 +33,8 @@ export interface ResearchOutcome {
   tPlus20Return?: number;
   maxDrawdown?: number;
   isCorrectDirection?: boolean;
+  baselineReturn?: number; // 同期大盤報酬
+  alpha?: number;          // 超額報酬 (Outcome Return - Baseline Return)
 }
 
 export interface ResearchOutcomeRepository {

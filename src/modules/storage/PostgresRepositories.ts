@@ -125,17 +125,20 @@ export class PostgresResearchOutcomeRepository implements ResearchOutcomeReposit
       INSERT INTO research_outcomes (
         run_id, stock_id, action, entry_reference_price, 
         t_plus_1_return, t_plus_5_return, t_plus_20_return, 
-        max_drawdown, is_correct_direction
+        max_drawdown, is_correct_direction, baseline_return, alpha
       ) VALUES (
         ${outcome.runId}, ${outcome.stockId}, ${outcome.action}, ${outcome.entryReferencePrice},
         ${outcome.tPlus1Return ?? null}, ${outcome.tPlus5Return ?? null}, ${outcome.tPlus20Return ?? null},
-        ${outcome.maxDrawdown ?? null}, ${outcome.isCorrectDirection === undefined ? null : outcome.isCorrectDirection}
+        ${outcome.maxDrawdown ?? null}, ${outcome.isCorrectDirection === undefined ? null : outcome.isCorrectDirection},
+        ${outcome.baselineReturn ?? null}, ${outcome.alpha ?? null}
       )
       ON CONFLICT (run_id, stock_id) DO UPDATE SET
         t_plus_1_return = EXCLUDED.t_plus_1_return,
         t_plus_5_return = EXCLUDED.t_plus_5_return,
         t_plus_20_return = EXCLUDED.t_plus_20_return,
-        is_correct_direction = EXCLUDED.is_correct_direction
+        is_correct_direction = EXCLUDED.is_correct_direction,
+        baseline_return = EXCLUDED.baseline_return,
+        alpha = EXCLUDED.alpha
     `;
   }
 
@@ -144,7 +147,8 @@ export class PostgresResearchOutcomeRepository implements ResearchOutcomeReposit
       SELECT run_id as "runId", stock_id as "stockId", action, 
              entry_reference_price as "entryReferencePrice",
              t_plus_1_return as "tPlus1Return", t_plus_5_return as "tPlus5Return", t_plus_20_return as "tPlus20Return",
-             max_drawdown as "maxDrawdown", is_correct_direction as "isCorrectDirection"
+             max_drawdown as "maxDrawdown", is_correct_direction as "isCorrectDirection",
+             baseline_return as "baselineReturn", alpha
       FROM research_outcomes
       WHERE run_id = ${runId}
     `;
@@ -155,6 +159,8 @@ export class PostgresResearchOutcomeRepository implements ResearchOutcomeReposit
       tPlus5Return: r.tPlus5Return ? parseFloat(r.tPlus5Return as any) : undefined,
       tPlus20Return: r.tPlus20Return ? parseFloat(r.tPlus20Return as any) : undefined,
       maxDrawdown: r.maxDrawdown ? parseFloat(r.maxDrawdown as any) : undefined,
+      baselineReturn: r.baselineReturn ? parseFloat(r.baselineReturn as any) : undefined,
+      alpha: r.alpha ? parseFloat(r.alpha as any) : undefined,
     })) as any[];
   }
 }

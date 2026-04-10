@@ -22,47 +22,53 @@ export class PerformanceReportGenerator {
       '',
       `## 1. 整體概況`,
       `- 總研究個股數: ${stats.totalCount}`,
+      runId.includes('BATCH') ? `- 平均每日研究數: ${(stats.totalCount / parseInt(runId.match(/\d+/)![0])).toFixed(1)}` : '',
       `- 可評估方向樣本數: ${stats.evaluableCount} (isCorrectDirection 可判定者)`,
       `- 5D 報酬可計算筆數: ${stats.validReturnCount} (覆蓋率: ${((stats.validReturnCount / stats.totalCount) * 100).toFixed(1)}%)`,
       `- 方向預測正確數: ${stats.correctDirectionCount}`,
       `- **綜合準確率: ${(stats.accuracy * 100).toFixed(1)}%**`,
       `- **5日平均報酬率: ${formatRet(stats.averageReturn5D as any)}**`,
+      `- **5日大盤平均報酬: ${formatRet(stats.averageBaselineReturn)}**`,
+      `- **平均超額報酬 (Alpha): ${formatRet(stats.averageAlpha)}**`,
       ''
-    ];
+    ].filter(line => line !== '');
 
     const actionHeader = [
       `## 2. 決策動作拆解`,
-      '| 動作 | 樣本數 | 可評估數 | 準確率 | 平均報酬 (5D) |',
-      '| :--- | :---: | :---: | :---: | :---: |'
+      '| 動作 | 樣本數 | 可評估數 | 準確率 | 穩定度 | 平均報酬 (5D) |',
+      '| :--- | :---: | :---: | :---: | :---: | :---: |'
     ];
     const actionRows = actionBreakdown.map(b => {
       const acc = (b.accuracy * 100).toFixed(1) + '%';
       const ret = formatRet(b.avgReturn as any);
-      return `| **${b.action}** | ${b.count} | ${b.evaluableCount} | ${acc} | ${ret} |`;
+      const stability = b.action === 'WATCH' ? '-' : (b.accuracy > 0 ? 'N/A' : '-'); // Action 目前未算穩定度，留給 Rule/Thesis
+      return `| **${b.action}** | ${b.count} | ${b.evaluableCount} | ${acc} | ${stability} | ${ret} |`;
     });
 
     const ruleHeader = [
       '',
       `## 3. 判斷規則 (Rules) 成效`,
-      '| 規則 ID | 觸發次數 | 可評估數 | 準確率 | 平均報酬 (5D) |',
-      '| :--- | :---: | :---: | :---: | :---: |'
+      '| 規則 ID | 觸發次數 | 可評估數 | 準確率 | 穩定度 | 平均報酬 (5D) |',
+      '| :--- | :---: | :---: | :---: | :---: | :---: |'
     ];
     const ruleRows = ruleBreakdown.map(b => {
       const acc = (b.accuracy * 100).toFixed(1) + '%';
       const ret = formatRet(b.avgReturn as any);
-      return `| \`${b.ruleId}\` | ${b.hitCount} | ${b.evaluableCount} | ${acc} | ${ret} |`;
+      const stability = b.consistency !== undefined ? (b.consistency * 100).toFixed(0) + '%' : 'N/A';
+      return `| \`${b.ruleId}\` | ${b.hitCount} | ${b.evaluableCount} | **${acc}** | ${stability} | ${ret} |`;
     });
 
     const thesisHeader = [
       '',
       `## 4. 論點狀態 (Thesis) 成效`,
-      '| 狀態 | 樣本數 | 可評估數 | 準確率 | 平均報酬 (5D) |',
-      '| :--- | :---: | :---: | :---: | :---: |'
+      '| 狀態 | 樣本數 | 可評估數 | 準確率 | 穩定度 | 平均報酬 (5D) |',
+      '| :--- | :---: | :---: | :---: | :---: | :---: |'
     ];
     const thesisRows = thesisBreakdown.map(b => {
       const acc = (b.accuracy * 100).toFixed(1) + '%';
       const ret = formatRet(b.avgReturn as any);
-      return `| **${b.status}** | ${b.count} | ${b.evaluableCount} | ${acc} | ${ret} |`;
+      const stability = b.consistency !== undefined ? (b.consistency * 100).toFixed(0) + '%' : 'N/A';
+      return `| **${b.status}** | ${b.count} | ${b.evaluableCount} | **${acc}** | ${stability} | ${ret} |`;
     });
 
     return [

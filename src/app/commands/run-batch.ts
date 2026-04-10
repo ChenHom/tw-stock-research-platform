@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import { execSync } from 'node:child_process';
 import { bootstrap } from '../bootstrap.js';
+import { toTaipeiDateString } from '../../core/utils/date.js';
+import { ResearchAssertions } from '../utils/assertions.js';
 
 async function main() {
   const startDateStr = process.argv[2];
@@ -38,7 +40,7 @@ async function main() {
 
   while (current <= endDate) {
     expectedDays++;
-    const dateStr = current.toISOString().split('T')[0];
+    const dateStr = toTaipeiDateString(current);
     console.log(`\n--- 處理日期: ${dateStr} ---`);
 
     try {
@@ -76,31 +78,23 @@ async function main() {
     process.exit(1);
   }
 
-  const coverage = (stats.validReturnCount / stats.totalCount) * 100;
-  console.log(`\n✅ 聚合指標: 任務數=${runIds.length}, 總個股=${stats.totalCount}, 5D報酬覆蓋=${stats.validReturnCount} (${coverage.toFixed(1)}%)`);
-
   // --- 驗收斷言 (Assertions) ---
-  console.log('\n[批次驗收斷言]');
+  const result = ResearchAssertions.validateQuality(stats, {
+    expectedRunCount: expectedDays,
+    actualRunCount: runIds.length,
+    minReturnCoverage: 80
+  });
 
-  // 1. 任務數量需符合預期天數
-  if (runIds.length !== expectedDays) {
-    console.error(`❌ 失敗: 預期產出 ${expectedDays} 天的研究任務，但實際僅產出 ${runIds.length} 個。`);
+  console.log(`\n✅ 聚合指標: 任務數=${runIds.length}/${expectedDays}, 總個股=${stats.totalCount}, 5D報酬覆蓋=${stats.validReturnCount}`);
+
+  if (!result.success) {
+    console.error('\n❌ 批次驗收失敗:');
+    result.errors.forEach(e => console.error(`  - ${e}`));
     process.exit(1);
   }
 
-  // 2. 5D 報酬覆蓋率需 >= 80%
-  if (coverage < 80) {
-    console.error(`❌ 失敗: 5D 報酬覆蓋率過低 (${coverage.toFixed(1)}% < 80%)`);
-    process.exit(1);
-  }
-
-  // 3. 確保至少有一項規則或論點樣本數達到統計意義 (MIN_SAMPLES = 10)
-  const hitsThreshold = ruleBreakdown.some(r => r.evaluableCount >= 10) || thesisBreakdown.some(t => t.evaluableCount >= 10);
-  if (!hitsThreshold) {
-    console.warn('⚠️ 警告: 目前尚無任何規則或論點樣本數達到 10 筆，洞察建議可能不具統計意義。');
-  } else {
-    console.log('✅ 統計門檻: 已有規則或論點達到 10 筆以上樣本。');
-  }
+  const sig = ResearchAssertions.checkStatisticalSignificance(ruleBreakdown, thesisBreakdown);
+  console.log(sig.message);
 
   console.log('\n[Step 3] 產出聚合績效報表 (Performance Range)...');
   execSync(`npm run performance range ${startDateStr} ${endDateStr}`, { stdio: 'inherit' });

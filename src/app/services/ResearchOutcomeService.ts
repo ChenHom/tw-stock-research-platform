@@ -18,6 +18,18 @@ export class ResearchOutcomeService {
     if (results.length === 0) return;
 
     const baseDate = new Date(run.tradeDate);
+    const baselineTicker = '0050';
+
+    // 取得大盤基準價格 (T+0 與 T+5)
+    const baselineEntryData = await this.fetchHistoricalPrice(baselineTicker, baseDate, 0);
+    const baselineEntryPrice = baselineEntryData?.close || 0;
+    const baselineT5Data = await this.fetchPriceWithRetry(baselineTicker, baseDate, 5);
+    const baselineT5Price = baselineT5Data?.close || 0;
+
+    let baselineRet5D: number | undefined;
+    if (baselineEntryPrice > 0 && baselineT5Price > 0) {
+      baselineRet5D = (baselineT5Price - baselineEntryPrice) / baselineEntryPrice;
+    }
 
     for (const res of results) {
       // 1. 抓取進場價 (T+0)
@@ -52,7 +64,9 @@ export class ResearchOutcomeService {
         tPlus1Return: t1Ret,
         tPlus5Return: t5Ret,
         tPlus20Return: t20Ret,
-        isCorrectDirection: this.judgeDirection(res.finalAction, t5Ret ?? t1Ret)
+        isCorrectDirection: this.judgeDirection(res.finalAction, t5Ret ?? t1Ret),
+        baselineReturn: baselineRet5D,
+        alpha: (t5Ret !== undefined && baselineRet5D !== undefined) ? (t5Ret - baselineRet5D) : undefined
       };
 
       await this.outcomeRepo.save(outcome);
