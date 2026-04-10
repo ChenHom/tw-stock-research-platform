@@ -39,7 +39,7 @@ export class PerformanceReportGenerator {
       '| :--- | :---: | :---: | :---: | :---: | :---: |'
     ];
     const actionRows = actionBreakdown.map(b => {
-      const acc = (b.accuracy * 100).toFixed(1) + '%';
+      const acc = b.evaluableCount > 0 ? (b.accuracy * 100).toFixed(1) + '%' : 'N/A';
       const ret = formatRet(b.avgReturn as any);
       const stability = b.action === 'WATCH' ? '-' : (b.accuracy > 0 ? 'N/A' : '-'); // Action 目前未算穩定度，留給 Rule/Thesis
       return `| **${b.action}** | ${b.count} | ${b.evaluableCount} | ${acc} | ${stability} | ${ret} |`;
@@ -52,7 +52,7 @@ export class PerformanceReportGenerator {
       '| :--- | :---: | :---: | :---: | :---: | :---: |'
     ];
     const ruleRows = ruleBreakdown.map(b => {
-      const acc = (b.accuracy * 100).toFixed(1) + '%';
+      const acc = b.evaluableCount > 0 ? (b.accuracy * 100).toFixed(1) + '%' : 'N/A';
       const ret = formatRet(b.avgReturn as any);
       const stability = b.consistency !== undefined ? (b.consistency * 100).toFixed(0) + '%' : 'N/A';
       return `| \`${b.ruleId}\` | ${b.hitCount} | ${b.evaluableCount} | **${acc}** | ${stability} | ${ret} |`;
@@ -65,7 +65,7 @@ export class PerformanceReportGenerator {
       '| :--- | :---: | :---: | :---: | :---: | :---: |'
     ];
     const thesisRows = thesisBreakdown.map(b => {
-      const acc = (b.accuracy * 100).toFixed(1) + '%';
+      const acc = b.evaluableCount > 0 ? (b.accuracy * 100).toFixed(1) + '%' : 'N/A';
       const ret = formatRet(b.avgReturn as any);
       const stability = b.consistency !== undefined ? (b.consistency * 100).toFixed(0) + '%' : 'N/A';
       return `| **${b.status}** | ${b.count} | ${b.evaluableCount} | **${acc}** | ${stability} | ${ret} |`;

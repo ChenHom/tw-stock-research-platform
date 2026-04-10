@@ -119,26 +119,38 @@ export class DecisionComposer {
       const mRisk = features?.marginRiskScore ?? 0;
       const reasons = [];
       if (thesis === 'broken') reasons.push('投資論點已破壞');
-      if (score < 40) reasons.push('總分低於 40');
-      if (mRisk >= 80) reasons.push('風險分數過高');
+      if (score < 40) reasons.push(`總分(${score}) < 40`);
+      if (mRisk >= 80) reasons.push(`風險分數(${mRisk}) >= 80`);
       if (primaryName && !reasons.includes(primaryName)) reasons.push(primaryName);
       parts.push(`觸發風險攔截 (${reasons.join('、') || '條件不符'})。`);
     }
     else if (thesis === 'broken') parts.push('投資論點已破壞，建議出場。');
     else if (action === 'EXIT' || action === 'SELL' || action === 'TRIM') parts.push(`主導規則 [${primaryName || '未知'}] 建議減碼或出場。`);
     else if (action === 'BUY' || action === 'ADD') {
-      const triggeredBuys = input?.ruleResults?.filter(r => r.triggered && (r.action === 'BUY' || r.action === 'ADD')).map(r => r.ruleName).join('、');
+      const score = features?.totalScore ?? 0;
+      const inst = features?.institutionalNet ?? 0;
+      const close = features?.closePrice ?? 0;
+      const ma20 = features?.ma20 ?? 0;
+      
+      const conditions = [];
+      if (score >= 70) conditions.push(`總分(${score}) >= 70`);
+      if (inst > 0) conditions.push(`法人買超(${inst.toFixed(0)})`);
+      if (close > ma20 && ma20 > 0) conditions.push(`股價(${close}) > MA20(${ma20.toFixed(1)})`);
+      
       parts.push(`主導規則 [${primaryName || '未知'}] 建議偏多操作。`);
-      if (triggeredBuys) parts.push(`觸發條件: ${triggeredBuys}。`);
+      if (conditions.length > 0) parts.push(`達成條件: ${conditions.join('、')}。`);
     }
     else if (action === 'WATCH') {
       const missing = [];
       if (features) {
-        if ((features.totalScore ?? 0) < 70) missing.push('評分達標(70+)');
-        if ((features.institutionalNet ?? 0) <= 0) missing.push('法人買盤');
+        const score = features.totalScore ?? 0;
+        const inst = features.institutionalNet ?? 0;
         const close = features.closePrice ?? 0;
         const ma20 = features.ma20 ?? 0;
-        if (close <= ma20 && ma20 > 0) missing.push('均線支撐');
+
+        if (score < 70) missing.push(`總分(${score}) < 70`);
+        if (inst <= 0) missing.push(`法人買盤(${inst.toFixed(0)})`);
+        if (close <= ma20 && ma20 > 0) missing.push(`均線支撐(股價 ${close} <= MA20 ${ma20.toFixed(1)})`);
       }
       const missingStr = missing.length > 0 ? `缺${missing.join('、')}` : '動能不足';
       parts.push(primaryName ? `主導規則 [${primaryName}] 顯示指標轉強，但${missingStr}，維持觀察。` : `目前無明確交易訊號，且${missingStr}，維持觀察。`);

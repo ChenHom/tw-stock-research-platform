@@ -20,16 +20,19 @@ export class ResearchOutcomeService {
     const baseDate = new Date(run.tradeDate);
     const baselineTicker = '0050';
 
-    // 取得大盤基準價格 (T+0 與 T+5)
+    // 取得大盤基準價格 (T+0, T+1, T+5)
     const baselineEntryData = await this.fetchHistoricalPrice(baselineTicker, baseDate, 0);
     const baselineEntryPrice = baselineEntryData?.close || 0;
+    const baselineT1Data = await this.fetchPriceWithRetry(baselineTicker, baseDate, 1);
     const baselineT5Data = await this.fetchPriceWithRetry(baselineTicker, baseDate, 5);
-    const baselineT5Price = baselineT5Data?.close || 0;
 
-    let baselineRet5D: number | undefined;
-    if (baselineEntryPrice > 0 && baselineT5Price > 0) {
-      baselineRet5D = (baselineT5Price - baselineEntryPrice) / baselineEntryPrice;
-    }
+    const getBaselineRet = (close?: number) => {
+      if (baselineEntryPrice <= 0 || !close || close <= 0) return undefined;
+      return (close - baselineEntryPrice) / baselineEntryPrice;
+    };
+
+    const baselineRet1D = getBaselineRet(baselineT1Data?.close);
+    const baselineRet5D = getBaselineRet(baselineT5Data?.close);
 
     for (const res of results) {
       // 1. 抓取進場價 (T+0)
@@ -41,7 +44,7 @@ export class ResearchOutcomeService {
         continue;
       }
 
-      // 2. 抓取 T+1, T+5, T+20 (加入假日搜尋邏輯)
+      // 2. 抓取 T+1, T+5, T+20
       const t1 = await this.fetchPriceWithRetry(res.stockId, baseDate, 1);
       const t5 = await this.fetchPriceWithRetry(res.stockId, baseDate, 5);
       const t20 = await this.fetchPriceWithRetry(res.stockId, baseDate, 20);
@@ -56,6 +59,14 @@ export class ResearchOutcomeService {
       const t5Ret = calculateReturn(t5?.close);
       const t20Ret = calculateReturn(t20?.close);
 
+      // 計算 Alpha (優先 T+5, 若無則 T+1)
+      let alpha: number | undefined;
+      if (t5Ret !== undefined && baselineRet5D !== undefined) {
+        alpha = t5Ret - baselineRet5D;
+      } else if (t1Ret !== undefined && baselineRet1D !== undefined) {
+        alpha = t1Ret - baselineRet1D;
+      }
+
       const outcome: ResearchOutcome = {
         runId,
         stockId: res.stockId,
@@ -64,9 +75,9 @@ export class ResearchOutcomeService {
         tPlus1Return: t1Ret,
         tPlus5Return: t5Ret,
         tPlus20Return: t20Ret,
-        isCorrectDirection: this.judgeDirection(res.finalAction, t5Ret ?? t1Ret, (t5Ret !== undefined && baselineRet5D !== undefined) ? (t5Ret - baselineRet5D) : undefined),
+        isCorrectDirection: this.judgeDirection(res.finalAction, t5Ret ?? t1Ret, alpha),
         baselineReturn: baselineRet5D,
-        alpha: (t5Ret !== undefined && baselineRet5D !== undefined) ? (t5Ret - baselineRet5D) : undefined
+        alpha
       };
 
       await this.outcomeRepo.save(outcome);

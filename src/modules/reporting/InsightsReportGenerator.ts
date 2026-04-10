@@ -14,12 +14,12 @@ export class InsightsReportGenerator {
       '### ✅ 高效規則',
       '| 規則 ID | 準確率 | 樣本數 | 置信度 |',
       '| :--- | :---: | :---: | :---: |',
-      ...insights.topEffectiveRules.map(r => `| \`${r.ruleId}\` | **${(r.accuracy * 100).toFixed(1)}%** | ${r.evaluableCount} | ${r.confidenceLevel} |`),
+      ...insights.topEffectiveRules.map(r => `| \`${r.ruleId}\` | **${r.evaluableCount > 0 ? (r.accuracy * 100).toFixed(1) + '%' : 'N/A'}** | ${r.evaluableCount} | ${r.confidenceLevel} |`),
       '',
       '### ⚠️ 低效規則',
       '| 規則 ID | 準確率 | 樣本數 | 置信度 |',
       '| :--- | :---: | :---: | :---: |',
-      ...insights.lowEffectiveRules.map(r => `| \`${r.ruleId}\` | ${(r.accuracy * 100).toFixed(1)}% | ${r.evaluableCount} | ${r.confidenceLevel} |`),
+      ...insights.lowEffectiveRules.map(r => `| \`${r.ruleId}\` | ${r.evaluableCount > 0 ? (r.accuracy * 100).toFixed(1) + '%' : 'N/A'} | ${r.evaluableCount} | ${r.confidenceLevel} |`),
       ''
     ];
 
@@ -39,12 +39,12 @@ export class InsightsReportGenerator {
       '### 論點狀態勝率',
       '| 狀態 | 準確率 | 樣本數 | 置信度 |',
       '| :--- | :---: | :---: | :---: |',
-      ...insights.thesisPerformance.map(t => `| **${t.status}** | ${(t.accuracy * 100).toFixed(1)}% | ${t.evaluableCount} | ${t.confidenceLevel} |`),
+      ...insights.thesisPerformance.map(t => `| **${t.status}** | ${t.evaluableCount > 0 ? (t.accuracy * 100).toFixed(1) + '%' : 'N/A'} | ${t.evaluableCount} | ${t.confidenceLevel} |`),
       '',
       '### 決策動作勝率',
       '| 動作 | 準確率 | 樣本數 | 置信度 |',
       '| :--- | :---: | :---: | :---: |',
-      ...insights.actionPerformance.map(a => `| **${a.action}** | ${(a.accuracy * 100).toFixed(1)}% | ${a.evaluableCount} | ${a.confidenceLevel} |`)
+      ...insights.actionPerformance.map(a => `| **${a.action}** | ${a.evaluableCount > 0 ? (a.accuracy * 100).toFixed(1) + '%' : 'N/A'} | ${a.evaluableCount} | ${a.confidenceLevel} |`)
     ];
 
     return [
