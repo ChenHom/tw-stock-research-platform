@@ -16,10 +16,11 @@
 
 1. **候選池篩選**：`run-candidates`
 2. **單檔研究**：`run-research`
-3. **研究留痕與歷史查詢**：`run-history`
-4. **成效回填**：`run-outcomes`
-5. **績效分析**：`run-performance`
-6. **優化洞察**：`run-insights`
+3. **單檔區間研究**：`run-research-range`
+4. **研究留痕與歷史查詢**：`run-history`
+5. **成效回填**：`run-outcomes`
+6. **績效分析**：`run-performance`
+7. **優化洞察**：`run-insights`
 
 這代表目前已可做 **MVP 流程測試**。
 
@@ -200,6 +201,19 @@ npm run db:reset
 npm run research -- 2330 2024-04-03
 ```
 
+### 單檔區間研究
+```bash
+npm run research:range -- 6761 2024-04-03 2024-04-13
+```
+區間研究現在有正式 CLI 入口，不需要再用臨時 `tsx` / shell 迴圈直接呼叫內部 service。  
+預設只輸出**交易日**；若要保留週末/休市日，請加上 `--calendar-days`。
+
+歷史日期研究會優先使用**point-in-time 歷史資料**：
+- 價格快照：由 `market_daily_history` 的當日資料還原
+- 歷史估值：優先使用可按日期查詢的 FinMind 資料
+
+這可避免把 TWSE 的「最新快照」誤標成過去日期。
+
 ### 候選池研究
 預設抓今天、Top 5。也可指定日期與數量。
 ```bash
@@ -226,6 +240,7 @@ npm run outcomes <runId>
 npm run performance latest
 npm run performance <runId>
 npm run performance range <start-date> <end-date>  # 批次聚合分析
+npm run performance runs <runId1,runId2,...>       # 用明確 runId 隔離批次分析
 ```
 
 ### 產出優化洞察
@@ -233,6 +248,7 @@ npm run performance range <start-date> <end-date>  # 批次聚合分析
 npm run insights latest
 npm run insights <runId>
 npm run insights range <start-date> <end-date>     # 批次聚合分析
+npm run insights runs <runId1,runId2,...>          # 用明確 runId 隔離批次分析
 ```
 
 ---
@@ -246,6 +262,7 @@ npm run insights range <start-date> <end-date>     # 批次聚合分析
 ```bash
 ./scripts/e2e-smoke-test.sh
 ```
+外層 shell script 只保留為便利入口；真正的驗證邏輯在 `tests/e2e-smoke.ts` 內直接呼叫專案 service。
 
 ### 執行每日例行 MVP 測試
 ```bash
@@ -257,6 +274,18 @@ npm run insights range <start-date> <end-date>     # 批次聚合分析
 ```bash
 npm run test:batch 2024-04-01 2024-04-10
 ```
+批次指令現在會以**當次 runId 清單**產出聚合報表，避免同日期的舊任務混入分析結果。
+而且批次驗證流程已改為**直接呼叫專案 service / report generator**，不再透過 `child_process` 轉呼叫其他 CLI。
+
+建議把批次驗證分成三種口徑解讀：
+
+| 期間 | 定位 | 可做判讀 | 不該做的事 |
+| --- | --- | --- | --- |
+| 1-2 日 | Smoke | 驗流程、驗閉環、驗資料回填 | 不要根據結果調規則 |
+| 3-5 日 | Stability | 驗連續執行穩定性、驗 action 語意 | 不要把 insights 當長期證據 |
+| 6-10 日 | Observation | 初步比較 BUY/WATCH/BLOCK 或 thesis 的 Alpha 表現 | 不要直接砍規則或大幅調參 |
+
+只有在樣本持續累積、且規則或 thesis 的可評估樣本數開始達到顯著門檻後，才適合討論升降權。
 
 ### 持續整合 (CI)
 專案已接入 GitHub Actions，在每次 Push / Pull Request 時會自動建立 PostgreSQL 與 Redis 服務容器，並執行 `npm run test:e2e` 與 `npm run test:batch` 以確保端到端閉環與資料斷言的正確性。
@@ -269,6 +298,7 @@ npm run test:batch 2024-04-01 2024-04-10
 - performance 能統計正確的分母與報酬率
 - insights 能根據樣本數給出信賴度與建議
 - 沒資料時 CLI 會顯示 N/A 而不會炸掉
+- 關鍵資料不足時，系統會降為 `WATCH`，避免把缺資料誤判成可交易訊號
 
 ---
 
@@ -278,7 +308,7 @@ npm run test:batch 2024-04-01 2024-04-10
 - **Language**：TypeScript
 - **Database**：PostgreSQL
 - **Cache**：Redis / In-memory
-- **Test**：Node.js Native Test Runner + ts-node/esm
+- **Test**：Node.js Native Test Runner + tsx
 
 ---
 

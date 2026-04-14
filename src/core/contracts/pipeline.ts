@@ -20,10 +20,16 @@ export interface PipelineRawData {
   news?: any[];
 }
 
+export interface ResearchDiagnostics {
+  isHistoricalPointInTime: boolean;
+  isNonTradingDay: boolean;
+}
+
 export interface RunResearchOutput {
   stockId: string;
   tradeDate: string;
   rawData: PipelineRawData;
+  diagnostics: ResearchDiagnostics;
   featureSnapshot: FeatureSnapshot;
   thesisSnapshot?: ThesisSnapshot;
   thesisStatus: ThesisStatus | 'none';

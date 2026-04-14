@@ -41,7 +41,7 @@ export class FinMindProvider implements DataProvider<
     context: FetchContext
   ): Promise<NormalizedResponse<MarketDailyRow | MonthRevenueRow | FinancialStatementRow | InstitutionalFlowRow | MarginShortRow | NewsRow | ValuationDailyRow>> {
     const { dataset } = query;
-    const cacheKey = CacheKeyFactory.create(dataset, context.accountTier, query.stockId, query.startDate);
+    const cacheKey = CacheKeyFactory.create(this.providerName, dataset, context.accountTier, query.stockId, query.startDate);
 
     if (this.cache && context.useCache !== false) {
       const cached = await this.cache.get<any>(cacheKey);

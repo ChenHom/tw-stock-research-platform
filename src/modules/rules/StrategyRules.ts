@@ -9,7 +9,7 @@ export class CandidatePoolAddRule implements BaseRule {
   readonly tags = ['strategy', 'candidate'];
 
   supports(context: RuleContext): boolean {
-    return context.thesis?.status !== 'broken';
+    return context.config?.hasPosition !== true && context.thesis?.status !== 'broken';
   }
 
   async evaluate(context: RuleContext): Promise<RuleResult> {
@@ -36,7 +36,7 @@ export class BuySetupRule implements BaseRule {
   readonly tags = ['strategy', 'buy'];
 
   supports(context: RuleContext): boolean {
-    return context.thesis?.status !== 'broken';
+    return context.config?.hasPosition !== true && context.thesis?.status !== 'broken';
   }
 
   async evaluate(context: RuleContext): Promise<RuleResult> {
@@ -59,6 +59,40 @@ export class BuySetupRule implements BaseRule {
   }
 }
 
+export class AddOnStrengthRule implements BaseRule {
+  readonly id = 'strategy.add_on_strength';
+  readonly name = 'Add On Strength';
+  readonly category = 'entry';
+  readonly priority = 50;
+  readonly tags = ['strategy', 'add', 'position'];
+
+  supports(context: RuleContext): boolean {
+    return context.config?.hasPosition === true && context.thesis?.status === 'active';
+  }
+
+  async evaluate(context: RuleContext): Promise<RuleResult> {
+    const score = context.features.totalScore ?? 0;
+    const instNet = context.features.institutionalNet ?? 0;
+    const close = context.features.closePrice ?? 0;
+    const ma20 = context.features.ma20 ?? Number.MAX_VALUE;
+    const volumeRatio20 = context.features.volumeRatio20 ?? 0;
+
+    const triggered = score >= 80 && instNet > 0 && close > ma20 && volumeRatio20 > 1;
+
+    return {
+      ruleId: this.id,
+      ruleName: this.name,
+      category: this.category,
+      action: triggered ? 'ADD' : 'WATCH',
+      severity: 'info',
+      triggered,
+      reason: triggered
+        ? `Strong follow-through: score=${score}, instNet=${instNet}, close=${close} > ma20=${ma20}, volumeRatio20=${volumeRatio20.toFixed(2)}`
+        : 'Add-on conditions not met'
+    };
+  }
+}
+
 export class TrendWeakeningRule implements BaseRule {
   readonly id = 'strategy.trend_weakening';
   readonly name = 'Trend Weakening';
@@ -67,15 +101,16 @@ export class TrendWeakeningRule implements BaseRule {
   readonly tags = ['strategy', 'sell'];
 
   supports(context: RuleContext): boolean {
-    return true;
+    return context.config?.hasPosition === true && context.thesis?.status !== 'broken';
   }
 
   async evaluate(context: RuleContext): Promise<RuleResult> {
     const instNet = context.features.institutionalNet ?? 0;
     const close = context.features.closePrice ?? 0;
     const ma20 = context.features.ma20 ?? 0;
+    const thesisWeakened = context.thesis?.status === 'weakened';
 
-    const triggered = close < ma20 && ma20 > 0 && instNet < 0;
+    const triggered = thesisWeakened || (close < ma20 && ma20 > 0 && instNet < 0);
 
     return {
       ruleId: this.id,
@@ -84,7 +119,9 @@ export class TrendWeakeningRule implements BaseRule {
       action: triggered ? 'TRIM' : 'WATCH',
       severity: 'warning',
       triggered,
-      reason: triggered ? 'Price dropped below MA20 and institutional selling' : 'Trend intact'
+      reason: triggered
+        ? `Trend weakening: thesis=${context.thesis?.status ?? 'none'}, close=${close}, ma20=${ma20}, instNet=${instNet}`
+        : 'Trend intact'
     };
   }
 }

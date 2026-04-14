@@ -42,9 +42,11 @@ if [ "$TOTAL_COUNT" -ne 5 ]; then
   exit 1
 fi
 
-# 2. 可評估方向需 >= 4 (考慮到 2330 可能是 WATCH 或資料缺失)
-if [ "$EVAL_COUNT" -lt 4 ]; then
-  echo "❌ 失敗: 可評估方向樣本數預期 >= 4，實際為 $EVAL_COUNT"
+# 2. 可評估方向需 >= 2
+#    資料品質防線啟用後，若關鍵資料不足，系統會主動降為 WATCH，
+#    不再把該樣本當成可交易方向訊號，因此 smoke test 只要求保留基本可評估樣本。
+if [ "$EVAL_COUNT" -lt 2 ]; then
+  echo "❌ 失敗: 可評估方向樣本數預期 >= 2，實際為 $EVAL_COUNT"
   exit 1
 fi
 

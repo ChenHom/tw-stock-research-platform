@@ -1,8 +1,10 @@
 import 'dotenv/config';
-import { execSync } from 'node:child_process';
 import { bootstrap } from '../bootstrap.js';
 import { toTaipeiDateString } from '../../core/utils/date.js';
 import { ResearchAssertions } from '../utils/assertions.js';
+import { PerformanceReportGenerator } from '../../modules/reporting/PerformanceReportGenerator.js';
+import { ResearchInsightsService } from '../services/ResearchInsightsService.js';
+import { InsightsReportGenerator } from '../../modules/reporting/InsightsReportGenerator.js';
 
 async function main() {
   const startDateStr = process.argv[2];
@@ -23,15 +25,26 @@ async function main() {
     process.exit(1);
   }
 
+  const plannedDays = Math.floor((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+  const validationSpec = ResearchAssertions.describeValidationWindow(plannedDays);
+
   console.log('===========================================');
   console.log('🚀 啟動跨平台 MVP 批次驗證任務');
   console.log(`📅 區間: ${startDateStr} ~ ${endDateStr}`);
   console.log(`🎯 樣本: ${stocks}`);
+  console.log(`🧭 驗證階段: ${validationSpec.label}`);
+  console.log(`📝 判讀口徑: ${validationSpec.interpretation}`);
+  validationSpec.acceptanceCriteria.forEach((criterion, index) => {
+    console.log(`   ${index + 1}. ${criterion}`);
+  });
   console.log('===========================================');
 
   const app = bootstrap();
   const perfService = app.researchPerformanceService;
-  const queryService = app.researchRunQueryService;
+  const performanceReportGenerator = new PerformanceReportGenerator();
+  const insightsService = new ResearchInsightsService();
+  const insightsReportGenerator = new InsightsReportGenerator();
+  const stockIds = stocks.split(',').map(stock => stock.trim()).filter(Boolean);
 
   // 1. 迭代日期執行研究與回填
   const current = new Date(startDate);
@@ -45,16 +58,23 @@ async function main() {
 
     try {
       console.log(`[Step 1] 執行深度研究 (Candidates) for ${dateStr}...`);
-      execSync(`npm run candidates -- ${dateStr} --stocks=${stocks}`, { stdio: 'inherit' });
+      const { runId, results } = await app.candidateResearchService.runDetailed({
+        criteria: { minVolume: 2000, maxPe: 25 },
+        tradeDate: dateStr,
+        topN: stockIds.length,
+        accountTier: 'free',
+        stockIds
+      }, app.budgetGuard.evaluate('finmind', 0, 600));
 
-      console.log('[Step 2] 執行成效回填 (Outcomes) latest...');
-      execSync('npm run outcomes latest', { stdio: 'inherit' });
-
-      // 獲取該日期產出的 runId
-      const runs = await queryService.findRunsByDate(dateStr);
-      if (runs.length > 0) {
-        runIds.push(runs[0].runId);
+      if (results.length === 0) {
+        console.warn(`[CLI] ${dateStr} 無有效研究結果，略過後續回填。`);
+        current.setDate(current.getDate() + 1);
+        continue;
       }
+
+      console.log(`[Step 2] 執行成效回填 (Outcomes) for ${runId}...`);
+      await app.researchOutcomeService.backfillOutcomes(runId);
+      runIds.push(runId);
     } catch (error: any) {
       console.error(`❌ 日期 ${dateStr} 處理失敗: ${error.message}`);
     }
@@ -67,8 +87,9 @@ async function main() {
   console.log('===========================================');
 
   // 2. 獲取聚合績效數據
-  const [stats, ruleBreakdown, thesisBreakdown] = await Promise.all([
+  const [stats, actionBreakdown, ruleBreakdown, thesisBreakdown] = await Promise.all([
     perfService.getBatchPerformance(runIds),
+    perfService.getBatchActionBreakdown(runIds),
     perfService.getBatchRuleBreakdown(runIds),
     perfService.getBatchThesisBreakdown(runIds)
   ]);
@@ -93,14 +114,34 @@ async function main() {
     process.exit(1);
   }
 
+  result.warnings.forEach(warning => console.log(`ℹ️ ${warning}`));
+
   const sig = ResearchAssertions.checkStatisticalSignificance(ruleBreakdown, thesisBreakdown);
   console.log(sig.message);
 
-  console.log('\n[Step 3] 產出聚合績效報表 (Performance Range)...');
-  execSync(`npm run performance range ${startDateStr} ${endDateStr}`, { stdio: 'inherit' });
+  const isolatedRunIds = runIds.join(',');
 
-  console.log('\n[Step 4] 產出聚合策略洞察 (Insights Range)...');
-  execSync(`npm run insights range ${startDateStr} ${endDateStr}`, { stdio: 'inherit' });
+  console.log('\n[Step 3] 產出聚合績效報表 (Performance Runs)...');
+  console.log('\n--- 執行深度績效分析 (包含 Rules & Thesis) ---\n');
+  console.log(performanceReportGenerator.buildPerformanceMarkdown(
+    isolatedRunIds,
+    stats,
+    actionBreakdown,
+    ruleBreakdown,
+    thesisBreakdown
+  ));
+
+  console.log('\n[Step 4] 產出聚合策略洞察 (Insights Runs)...');
+  console.log('\n--- 執行策略優化分析 ---\n');
+  console.log(insightsReportGenerator.buildInsightsMarkdown(
+    insightsService.analyze(
+      isolatedRunIds,
+      stats,
+      actionBreakdown,
+      ruleBreakdown,
+      thesisBreakdown
+    )
+  ));
 
   console.log('\n✅ MVP 批次驗收測試全數通過。');
   process.exit(0);

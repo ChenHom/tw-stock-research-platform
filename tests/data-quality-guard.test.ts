@@ -11,37 +11,18 @@ import { MockProvider } from './mocks/MockProvider.js';
 import { DataQualityGuardRule } from '../src/modules/rules/FilterRules.js';
 import { BuySetupRule } from '../src/modules/rules/StrategyRules.js';
 
-test('ResearchPipeline (可信度驗證): 應能使用 Mock 資料完整產出具備計分的決策', async (t) => {
-  const start = new Date('2026-03-08');
-  const history = Array.from({ length: 30 }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return {
-      stockId: '2330',
-      tradeDate: date.toISOString().slice(0, 10),
-      close: 90 + index,
-      volume: 1500 + index * 10
-    };
-  });
+test('DataQualityGuardRule: 關鍵資料不足時應降為 WATCH 並說明原因', async () => {
   const mockProvider = new MockProvider({
     'market_daily_latest': [{ stockId: '2330', close: 120, open: 95, volume: 3000 }],
     'daily_valuation': [{ stockId: '2330', peRatio: 12, pbRatio: 1.5, dividendYield: 4 }],
     'month_revenue': [{ stockId: '2330', revenueYoy: 0.25, revenueMom: 0.1 }],
-    'institutional_flow': [{ stockId: '2330', totalNet: 500, foreignNet: 300, trustNet: 200 }],
-    'market_daily_history': history,
-    'financial_statements': [
-      { stockId: '2330', date: '2025-12-31', revenue: 1000, grossProfit: 400, operatingIncome: 200, eps: 6, roe: 18 },
-      { stockId: '2330', date: '2025-09-30', revenue: 950, grossProfit: 350, operatingIncome: 180, eps: 5, roe: 16 },
-      { stockId: '2330', date: '2025-06-30', revenue: 900, grossProfit: 320, operatingIncome: 160, eps: 5, roe: 15 },
-      { stockId: '2330', date: '2025-03-31', revenue: 850, grossProfit: 300, operatingIncome: 150, eps: 5, roe: 14 }
-    ]
+    'institutional_flow': [{ stockId: '2330', totalNet: 500, foreignNet: 300, trustNet: 200 }]
   });
   const providerRegistry = new ProviderRegistry([mockProvider]);
   const ruleRegistry = new DefaultRuleRegistry();
   ruleRegistry.register(new DataQualityGuardRule());
   ruleRegistry.register(new BuySetupRule());
 
-  // Mock Router：強迫所有 Dataset 都走 mock provider
   const mockRouter: any = {
     decide: (dataset: string) => ({
       dataset,
@@ -69,9 +50,7 @@ test('ResearchPipeline (可信度驗證): 應能使用 Mock 資料完整產出�
     accountTier: 'free'
   });
 
-  assert.strictEqual(result.stockId, '2330');
-  const score = result.featureSnapshot.payload.totalScore;
-  assert.ok(score > 0, `特徵計分應大於 0 (應包含估值與營收加分), 實際為: ${score}`);
-  assert.strictEqual(result.finalDecision.action, 'BUY');
-  assert.ok(!result.ruleResults.some(rule => rule.ruleId === 'filter.data_quality_guard' && rule.triggered), '資料完整時不應被品質防線攔下');
+  assert.strictEqual(result.finalDecision.action, 'WATCH');
+  assert.ok(result.finalDecision.summary.includes('資料品質不足'));
+  assert.ok(result.ruleResults.some(rule => rule.ruleId === 'filter.data_quality_guard' && rule.triggered));
 });

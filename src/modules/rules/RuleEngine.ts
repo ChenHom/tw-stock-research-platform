@@ -30,7 +30,7 @@ export class DefaultRuleEngine implements RuleEngineContract {
   /**
    * 執行規則評估。
    * 執行順序 (Phase)：
-   * 1. filter: 決定是否要繼續處理此股票 (若 BLOCK 則跳過後續)
+   * 1. filter: 決定是否要繼續處理此股票 (任何 triggered filter 都跳過後續)
    * 2. risk: 決定是否存在即時風險 (若觸發 Critical 則 short-circuit)
    * 3. entry/exit/thesis: 其他策略規則
    */
@@ -51,8 +51,8 @@ export class DefaultRuleEngine implements RuleEngineContract {
 
         // Short-circuit 邏輯
         if (result.triggered) {
-          // 若 Filter 階段觸發 BLOCK，或 Risk 階段觸發 Critical 動作，則停止後續評估
-          if (result.category === 'filter' && result.action === 'BLOCK') return results;
+          // 若 Filter 階段任一規則已判定不可繼續，或 Risk 階段觸發 Critical 動作，則停止後續評估
+          if (result.category === 'filter') return results;
           if (result.category === 'risk' && result.severity === 'critical') return results;
         }
       }

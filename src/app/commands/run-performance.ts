@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { bootstrap } from '../bootstrap.js';
 import { PerformanceReportGenerator } from '../../modules/reporting/PerformanceReportGenerator.js';
+import { buildRunLabel, resolveRunIds } from '../utils/run-id-resolver.js';
 
 async function main() {
   const mode = process.argv[2] || 'latest';
@@ -12,36 +13,26 @@ async function main() {
   const reportGenerator = new PerformanceReportGenerator();
 
   try {
-    let runIds: string[] = [];
-
-    if (mode === 'latest') {
-      const latest = await queryService.getLatestRunSummary();
-      const latestId = latest?.run.runId || '';
-      if (latestId) runIds = [latestId];
-    } else if (mode === 'range') {
-      const startDate = param;
-      const endDate = process.argv[4];
-      if (!startDate || !endDate) {
-        console.log('請提供開始與結束日期: npm run performance range 2024-04-01 2024-04-10');
-        return;
-      }
-      console.log(`[CLI] 正在查詢日期區間任務: ${startDate} ~ ${endDate}`);
-      // 假設我們用簡單的日期迭代來獲取所有 runId
-      let current = new Date(startDate);
-      const end = new Date(endDate);
-      while (current <= end) {
-        const dateStr = current.toISOString().split('T')[0];
-        const runs = await queryService.findRunsByDate(dateStr);
-        runIds.push(...runs.map(r => r.runId));
-        current.setDate(current.getDate() + 1);
-      }
-    } else {
-      runIds = [mode];
+    if (mode === 'range' && (!param || !process.argv[4])) {
+      console.log('請提供開始與結束日期: npm run performance range 2024-04-01 2024-04-10');
+      return;
     }
+    if (mode === 'runs' && !param) {
+      console.log('請提供 runId 清單: npm run performance runs <runId1,runId2,...>');
+      return;
+    }
+
+    const runIds = await resolveRunIds(mode, param, queryService, process.argv.slice(4));
 
     if (runIds.length === 0) {
       console.log('找不到符合條件的任務紀錄。');
       return;
+    }
+
+    if (mode === 'range') {
+      console.log(`[CLI] 正在查詢日期區間任務: ${param} ~ ${process.argv[4]}`);
+    } else if (mode === 'runs') {
+      console.log(`[CLI] 正在使用明確 runId 清單分析: ${runIds.join(', ')}`);
     }
 
     console.log(`[CLI] 正在分析任務績效 (共 ${runIds.length} 個任務)...`);
@@ -61,7 +52,7 @@ async function main() {
 
     console.log('\n--- 執行深度績效分析 (包含 Rules & Thesis) ---\n');
     const mdReport = reportGenerator.buildPerformanceMarkdown(
-      runIds.length === 1 ? runIds[0] : `BATCH (${runIds.length} runs)`, 
+      buildRunLabel(runIds),
       stats, 
       actionBreakdown,
       ruleBreakdown,

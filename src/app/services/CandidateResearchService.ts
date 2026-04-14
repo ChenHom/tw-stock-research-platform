@@ -10,12 +10,18 @@ export interface CandidateResearchInput {
   tradeDate: string;
   topN?: number;
   accountTier?: 'free' | 'backer' | 'sponsor';
+  stockIds?: string[];
 }
 
 export interface CandidateResearchResult {
   stockId: string;
   preliminaryScore: number;
   research: RunResearchOutput;
+}
+
+export interface CandidateResearchRunResult {
+  runId: string;
+  results: CandidateResearchResult[];
 }
 
 /**
@@ -33,15 +39,23 @@ export class CandidateResearchService {
     input: CandidateResearchInput,
     budget?: BudgetSnapshot
   ): Promise<CandidateResearchResult[]> {
+    const detailed = await this.runDetailed(input, budget);
+    return detailed.results;
+  }
+
+  async runDetailed(
+    input: CandidateResearchInput,
+    budget?: BudgetSnapshot
+  ): Promise<CandidateResearchRunResult> {
     const runId = randomUUID();
-    const topN = input.topN || 5;
+    const topN = input.stockIds?.length || input.topN || 5;
     const accountTier = input.accountTier || 'free';
 
     // 1. 建立並儲存研究任務記錄 (Run Head)
     await this.researchRunRepo.save({
       runId,
       tradeDate: input.tradeDate,
-      criteria: input.criteria,
+      criteria: input.stockIds?.length ? { ...input.criteria, forcedStocks: input.stockIds } : input.criteria,
       topN,
       accountTier,
       status: 'running'
@@ -51,8 +65,12 @@ export class CandidateResearchService {
 
     try {
       // 2. 執行初篩
-      const candidates = await this.screeningService.screen(input.criteria);
-      const topCandidates = candidates.slice(0, topN);
+      const topCandidates = input.stockIds?.length
+        ? input.stockIds.map(stockId => ({
+            stockId,
+            preliminaryScore: -1
+          }))
+        : (await this.screeningService.screen(input.criteria)).slice(0, topN);
 
       // 3. 批次執行深度研究
       const results: CandidateResearchResult[] = [];
@@ -104,7 +122,7 @@ export class CandidateResearchService {
       await this.researchRunRepo.updateStatus(runId, 'completed');
 
       console.log(`[Coordinator] 任務 ${runId} 完成。產出 ${results.length} 份結果。`);
-      return results;
+      return { runId, results };
 
     } catch (error) {
       await this.researchRunRepo.updateStatus(runId, 'failed');

@@ -12,6 +12,7 @@
     "db:clear": "tsx src/app/commands/db-ops.ts clear",
     "db:reset": "tsx src/app/migrate.ts reset",
     "research": "tsx src/app/commands/run-research.ts",
+    "research:range": "tsx src/app/commands/run-research-range.ts",
     "candidates": "tsx src/app/commands/run-candidates.ts",
     "run-history": "tsx src/app/commands/run-history.ts",
     "outcomes": "tsx src/app/commands/run-outcomes.ts",

@@ -13,10 +13,12 @@ export class FeatureBuilder implements FeatureBuilderContract {
 
     // 1. 基礎欄位檢查
     if (!marketDaily) missingFields.push('market_daily');
+    if (marketDaily && (!Number.isFinite(marketDaily.close) || marketDaily.close <= 0)) missingFields.push('market_daily_invalid');
     if (!valuationDaily) missingFields.push('daily_valuation');
     if (!institutionalFlow) missingFields.push('institutional_flow');
     if (!monthRevenue) missingFields.push('month_revenue');
     if (!financialStatements || financialStatements.length === 0) missingFields.push('financial_statements');
+    if (!history || history.length < 20) missingFields.push('market_daily_history');
 
     // 2. 基本面特徵 (Fundamental Layer)
     const epsTtm = this.calculateEpsTtm(financialStatements || []);

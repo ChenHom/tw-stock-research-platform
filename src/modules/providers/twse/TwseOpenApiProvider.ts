@@ -23,7 +23,7 @@ export class TwseOpenApiProvider implements DataProvider<MarketDailyRow | Valuat
     const { dataset } = query;
     const mode = context.accountTier; 
     const queryDate = query.startDate || this.toTaipeiDate(new Date());
-    const cacheKey = CacheKeyFactory.create(dataset, mode, query.stockId, queryDate);
+    const cacheKey = CacheKeyFactory.create(this.providerName, dataset, mode, query.stockId, queryDate);
 
     // 1. 檢查快取
     if (this.cache && context.useCache !== false) {

@@ -64,6 +64,13 @@ export interface FinalDecision {
   action: RuleAction;
   confidence: number; // 0.0 - 1.0
   summary: string;
+  explanation?: {
+    primaryRuleId?: string;
+    primaryRuleName?: string;
+    triggeredConditions: string[];
+    missingConditions: string[];
+    blockingConditions: string[];
+  };
   supportingRules: string[];
   blockingRules: string[];
   thesisStatus: ThesisStatus | 'none';

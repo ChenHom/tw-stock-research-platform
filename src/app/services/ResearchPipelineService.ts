@@ -11,7 +11,7 @@ import type { BudgetSnapshot } from '../../modules/budget/RateBudgetGuard.js';
 import { ProviderRegistry } from '../../modules/providers/ProviderRegistry.js';
 import { ThesisTracker, type ThesisSnapshot } from '../../modules/research/ThesisTracker.js';
 import { DecisionComposer } from '../../modules/research/DecisionComposer.js';
-import { getDaysAgo } from '../../core/utils/date.js';
+import { getDaysAgo, toTaipeiDateString } from '../../core/utils/date.js';
 
 export interface ResearchPipelineDeps {
   router: DatasetRouter;
@@ -33,10 +33,22 @@ export class ResearchPipelineService {
     thesis?: ThesisSnapshot
   ): Promise<RunResearchOutput> {
     console.log(`[Pipeline] 開始研究任務: ${input.stockId} @ ${input.tradeDate}`);
+    const isHistoricalPointInTime = input.tradeDate !== toTaipeiDateString();
 
     // 1. 抓取多維度資料
-    const marketDaily = await this.fetchSingle('market_daily_latest', input, budget);
-    const valuationDaily = await this.fetchSingle('daily_valuation', input, budget);
+    const history = await this.fetchRange('market_daily_history', input.stockId, getDaysAgo(30, new Date(input.tradeDate)), input.tradeDate, input, budget);
+
+    // 抓取 0050 基準資料用於 Alpha 計算 (P0-3)
+    const benchmark = await this.fetchRange('market_daily_history', '0050', getDaysAgo(30, new Date(input.tradeDate)), input.tradeDate, input, budget);
+
+    const marketDaily = isHistoricalPointInTime
+      ? this.buildExactDateResponse(history, input.tradeDate)
+      : await this.fetchSingle('market_daily_latest', input, budget);
+
+    const valuationDaily = isHistoricalPointInTime
+      ? await this.fetchRange('daily_valuation', input.stockId, input.tradeDate, input.tradeDate, input, budget, { preferredProviders: ['finmind'] })
+      : await this.fetchSingle('daily_valuation', input, budget);
+
     const institutionalFlow = await this.fetchSingle('institutional_flow', input, budget);
     const marginShort = await this.fetchSingle('margin_short', input, budget);
     
@@ -45,15 +57,10 @@ export class ResearchPipelineService {
     
     // 營收往前推 400 天確保能計算 YoY 與趨勢 (P0-3)
     const monthRevenue = await this.fetchRange('month_revenue', input.stockId, getDaysAgo(400, new Date(input.tradeDate)), input.tradeDate, input, budget);
-    
-    // 抓取個股歷史日線
-    const history = await this.fetchRange('market_daily_history', input.stockId, getDaysAgo(30, new Date(input.tradeDate)), input.tradeDate, input, budget);
-    
-    // 抓取 0050 基準資料用於 Alpha 計算 (P0-3)
-    const benchmark = await this.fetchRange('market_daily_history', '0050', getDaysAgo(30, new Date(input.tradeDate)), input.tradeDate, input, budget);
 
     // 抓取新聞 (FinMind Free Tier 建議單日查詢以避免 400)
     const news = await this.fetchRange('stock_news', input.stockId, input.tradeDate, input.tradeDate, input, budget);
+    const isNonTradingDay = isHistoricalPointInTime && !marketDaily?.data?.[0];
 
     // 2. 構建特徵集
     const latestRevenue = monthRevenue?.data 
@@ -128,6 +135,9 @@ export class ResearchPipelineService {
       stockId: input.stockId,
       asOf: input.tradeDate,
       features: featureSet,
+      config: {
+        hasPosition: input.hasPosition ?? false
+      },
       thesis: activeThesis
         ? {
             id: activeThesis.thesisId,
@@ -164,6 +174,10 @@ export class ResearchPipelineService {
         marginShort: marginShort?.data?.[0],
         news: news?.data || []
       },
+      diagnostics: {
+        isHistoricalPointInTime,
+        isNonTradingDay
+      },
       featureSnapshot,
       thesisSnapshot: activeThesis,
       thesisStatus,
@@ -182,17 +196,30 @@ export class ResearchPipelineService {
     startDate: string,
     endDate: string,
     input: RunResearchInput,
-    budget?: BudgetSnapshot
+    budget?: BudgetSnapshot,
+    options?: {
+      preferredProviders?: string[];
+    }
   ) {
     const routing = this.deps.router.decide(dataset, input.accountTier, budget, stockId);
     if (!routing.canProceed) return null;
 
-    for (const providerName of routing.finalProviderOrder) {
+    const preferredOrder = options?.preferredProviders?.length
+      ? options.preferredProviders.filter(providerName => routing.finalProviderOrder.includes(providerName))
+      : [];
+
+    const providerOrder = preferredOrder.length > 0
+      ? preferredOrder
+      : routing.finalProviderOrder;
+
+    if (providerOrder.length === 0) return null;
+
+    for (const providerName of providerOrder) {
       const provider = this.deps.providerRegistry.getByName(providerName);
       if (!provider || !provider.supports(dataset)) continue;
 
       try {
-        return await provider.fetch({
+        const response = await provider.fetch({
           dataset,
           stockId,
           startDate,
@@ -201,10 +228,32 @@ export class ResearchPipelineService {
           accountTier: input.accountTier,
           useCache: input.useCache ?? true
         });
+
+        if (Array.isArray(response?.data) && response.data.length === 0) {
+          console.warn(`[Pipeline] Provider ${providerName} 回傳空資料，嘗試下一個來源 (${dataset}:${stockId})`);
+          continue;
+        }
+
+        return response;
       } catch (error) {
         console.error(`[Pipeline] Provider ${providerName} 抓取 ${dataset} 失敗`);
       }
     }
     return null;
+  }
+
+  private buildExactDateResponse(response: any, tradeDate: string) {
+    if (!Array.isArray(response?.data)) return null;
+    const exactRow = response.data.find((row: any) => row.tradeDate === tradeDate);
+    if (!exactRow) return null;
+
+    return {
+      data: [exactRow],
+      source: {
+        ...response.source,
+        asOf: tradeDate
+      },
+      warnings: response.warnings
+    };
   }
 }

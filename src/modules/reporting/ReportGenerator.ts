@@ -23,7 +23,10 @@ export class ReportGenerator {
       `- 動作: ${decision.action}`,
       `- 摘要理由: ${decision.summary}`,
       `- 信心程度: ${(decision.confidence * 100).toFixed(1)}%`,
+      decision.explanation?.triggeredConditions?.length ? `- 已達條件: ${decision.explanation.triggeredConditions.join(' / ')}` : '',
+      decision.explanation?.missingConditions?.length ? `- 未達條件: ${decision.explanation.missingConditions.join(' / ')}` : '',
+      decision.explanation?.blockingConditions?.length ? `- 攔截條件: ${decision.explanation.blockingConditions.join(' / ')}` : '',
       ''
-    ].join('\n');
+    ].filter(Boolean).join('\n');
   }
 }

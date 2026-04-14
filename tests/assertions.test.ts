@@ -78,3 +78,17 @@ test('ResearchAssertions: checkStatisticalSignificance', async (t) => {
     assert.ok(sig.message.includes('警告'));
   });
 });
+
+test('ResearchAssertions: describeValidationWindow', async (t) => {
+  await t.test('應對 3-5 日回傳 stability 規格', () => {
+    const spec = ResearchAssertions.describeValidationWindow(3);
+    assert.strictEqual(spec.stage, 'stability');
+    assert.ok(spec.insightPolicy.includes('early-stage'));
+  });
+
+  await t.test('應對 6-10 日回傳 observation 規格', () => {
+    const spec = ResearchAssertions.describeValidationWindow(8);
+    assert.strictEqual(spec.stage, 'observation');
+    assert.ok(spec.acceptanceCriteria.some(item => item.includes('runId')));
+  });
+});

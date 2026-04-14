@@ -8,11 +8,22 @@ test('ReportGenerator: 應能產出中文化的 Markdown 報告', (t) => {
   const featureSet: any = { stockId: '2330', tradeDate: '2026-04-06' };
   const thesis: any = { statement: '營收展望樂觀' };
   const valuation: any = { fairValueBase: 1000 };
-  const decision: any = { action: 'BUY', summary: '具備投資價值', confidence: 0.85 };
+  const decision: any = {
+    action: 'BUY',
+    summary: '具備投資價值',
+    confidence: 0.85,
+    explanation: {
+      triggeredConditions: ['總分(80) >= 70', '法人買超(1000) > 0'],
+      missingConditions: ['量能比(0.90) > 1.00'],
+      blockingConditions: []
+    }
+  };
 
   const report = generator.buildPositionReport(featureSet, thesis, valuation, decision);
 
   assert.ok(report.includes('# 個股持股/追蹤報告 - 2330'), '應包含正確標題');
   assert.ok(report.includes('## 投資論點 (Thesis)'), '應包含論點章節');
   assert.ok(report.includes('信心程度: 85.0%'), '應包含正確信心度');
+  assert.ok(report.includes('已達條件'), '應輸出已達條件');
+  assert.ok(report.includes('未達條件'), '應輸出未達條件');
 });
