@@ -31,11 +31,13 @@ npm run candidates -- --stocks=2330,3363,1560,6187,2002
 
 ### B. 成效與分析
 ```bash
-npm run run-history latest
-npm run outcomes latest
-npm run performance latest
-npm run insights latest
+npm run run-history detail <runId>
+npm run outcomes <runId>
+npm run performance runs <runId1,runId2,...>
+npm run insights runs <runId1,runId2,...>
 ```
+
+> 建議優先使用明確 `runId` / `runs` 模式，避免同日期其他 completed run 混入聚合分析。
 
 ## 4. 關鍵檢查點 (Checkpoints)
 - [ ] **流程面**: 指令是否能無人值守跑完？是否有卡住或 Uncaught Exception？

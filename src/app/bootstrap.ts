@@ -3,7 +3,7 @@ import { RateBudgetGuard } from '../modules/budget/RateBudgetGuard.js';
 import { DefaultRuleEngine, DefaultRuleRegistry } from '../modules/rules/RuleEngine.js';
 import { AbsoluteStopLossRule, ThesisBrokenRule, RiskBlockRule } from '../modules/rules/RiskRules.js';
 import { DataQualityGuardRule } from '../modules/rules/FilterRules.js';
-import { AddOnStrengthRule, CandidatePoolAddRule, BuySetupRule, TrendWeakeningRule } from '../modules/rules/StrategyRules.js';
+import { AddOnStrengthRule, CandidatePoolAddRule, BuySetupRule, HoldTrendRule, SupportBreakdownSellRule, TrendWeakeningRule, ValuationOverheatTrimRule } from '../modules/rules/StrategyRules.js';
 import { CustomStock1513RangeRule } from '../modules/rules/CustomOverrides.js';
 import { TwseOpenApiProvider } from '../modules/providers/twse/TwseOpenApiProvider.js';
 import { FinMindProvider } from '../modules/providers/finmind/FinMindProvider.js';
@@ -103,6 +103,9 @@ export function bootstrap(overrides?: BootstrapOverrides) {
   ruleRegistry.register(new CandidatePoolAddRule());
   ruleRegistry.register(new BuySetupRule());
   ruleRegistry.register(new AddOnStrengthRule());
+  ruleRegistry.register(new HoldTrendRule());
+  ruleRegistry.register(new ValuationOverheatTrimRule());
+  ruleRegistry.register(new SupportBreakdownSellRule());
   ruleRegistry.register(new TrendWeakeningRule());
   ruleRegistry.register(new CustomStock1513RangeRule());
   

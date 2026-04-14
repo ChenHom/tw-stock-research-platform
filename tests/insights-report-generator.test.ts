@@ -7,6 +7,12 @@ test('InsightsReportGenerator: 應正確格式化優化建議 Markdown 報表', 
   
   const mockInsights: any = {
     runId: 'test-run-report',
+    sampleAssessment: {
+      stage: 'observation',
+      message: '可做 early observation',
+      evaluableCount: 12,
+      coverage: 0.8
+    },
     topEffectiveRules: [{ ruleId: 'rule-high', accuracy: 0.9, hitCount: 10, evaluableCount: 10, confidenceLevel: 'Medium' }],
     lowEffectiveRules: [{ ruleId: 'rule-low', accuracy: 0.2, hitCount: 5, evaluableCount: 5, confidenceLevel: 'Low' }],
     thesisPerformance: [{ status: 'thesis_met', accuracy: 0.45, count: 15, evaluableCount: 15, confidenceLevel: 'Medium' }],

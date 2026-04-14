@@ -8,6 +8,10 @@ export interface CandidateResearchViewModel {
   confidence: number;
   summary: string;
   thesisStatus: string;
+  triggeredConditions?: string[];
+  missingConditions?: string[];
+  blockingConditions?: string[];
+  thesisSignals?: string[];
 }
 
 /**
@@ -26,7 +30,11 @@ export class CandidateResearchReportGenerator {
       action: r.finalDecision.action,
       confidence: r.finalDecision.confidence,
       summary: r.finalDecision.summary,
-      thesisStatus: r.thesisStatus
+      thesisStatus: r.thesisStatus,
+      triggeredConditions: r.finalDecision.explanation?.triggeredConditions,
+      missingConditions: r.finalDecision.explanation?.missingConditions,
+      blockingConditions: r.finalDecision.explanation?.blockingConditions,
+      thesisSignals: r.finalDecision.explanation?.thesisSignals
     }));
     return this.buildMarkdownTableFromModels(models, results[0]?.tradeDate || 'N/A');
   }
@@ -56,6 +64,25 @@ export class CandidateResearchReportGenerator {
       
       md += `| ${rank} | ${m.stockId} | ${preScore} | ${totalScore} | ${actionStr} | ${conf}% | ${m.summary} |\n`;
     });
+
+    const explanationRows = sorted
+      .filter(m =>
+        (m.triggeredConditions?.length ?? 0) > 0 ||
+        (m.missingConditions?.length ?? 0) > 0 ||
+        (m.blockingConditions?.length ?? 0) > 0 ||
+        (m.thesisSignals?.length ?? 0) > 0
+      );
+
+    if (explanationRows.length > 0) {
+      md += `\n## 條件詳解\n\n`;
+      explanationRows.forEach(m => {
+        md += `### ${m.stockId} · ${m.action} · thesis=${m.thesisStatus}\n`;
+        if (m.triggeredConditions?.length) md += `- 已達：${m.triggeredConditions.join('、')}\n`;
+        if (m.missingConditions?.length) md += `- 未達：${m.missingConditions.join('、')}\n`;
+        if (m.blockingConditions?.length) md += `- 攔截：${m.blockingConditions.join('、')}\n`;
+        if (m.thesisSignals?.length) md += `- 論點：${m.thesisSignals.join('、')}\n`;
+      });
+    }
 
     md += `\n---\n*註：研究總分權重包含基本面(40%)、技術面(25%)、籌碼面(25%)與事件面(10%)。*\n`;
     return md;

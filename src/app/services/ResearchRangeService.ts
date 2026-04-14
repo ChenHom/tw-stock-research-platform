@@ -26,6 +26,10 @@ export interface ResearchRangeDayResult {
   revenueYoy: number;
   missingFields: string[];
   summary: string;
+  triggeredConditions: string[];
+  missingConditionsDetail: string[];
+  blockingConditions: string[];
+  thesisSignals: string[];
   isNonTradingDay: boolean;
   output: RunResearchOutput;
 }
@@ -96,6 +100,10 @@ export class ResearchRangeService {
         revenueYoy: output.featureSnapshot.payload.revenueYoy,
         missingFields: output.featureSnapshot.payload.missingFields,
         summary: output.finalDecision.summary,
+        triggeredConditions: output.finalDecision.explanation?.triggeredConditions ?? [],
+        missingConditionsDetail: output.finalDecision.explanation?.missingConditions ?? [],
+        blockingConditions: output.finalDecision.explanation?.blockingConditions ?? [],
+        thesisSignals: output.finalDecision.explanation?.thesisSignals ?? [],
         isNonTradingDay,
         output
       });

@@ -5,7 +5,7 @@ import { buildRunLabel, resolveRunIds } from '../src/app/utils/run-id-resolver.j
 test('resolveRunIds: 應支援明確 runId 清單與去重', async () => {
   const queryService: any = {
     getLatestRunSummary: async () => null,
-    findRunsByDate: async () => []
+    findCompletedRunsByDate: async () => []
   };
 
   const runIds = await resolveRunIds('runs', 'run-1, run-2, run-1', queryService);
@@ -15,7 +15,7 @@ test('resolveRunIds: 應支援明確 runId 清單與去重', async () => {
 test('resolveRunIds: 應支援 latest 與 range 模式', async () => {
   const queryService: any = {
     getLatestRunSummary: async () => ({ run: { runId: 'latest-run' } }),
-    findRunsByDate: async (date: string) => {
+    findCompletedRunsByDate: async (date: string) => {
       if (date === '2024-04-01') return [{ runId: 'run-a' }];
       if (date === '2024-04-02') return [{ runId: 'run-b' }, { runId: 'run-c' }];
       return [];

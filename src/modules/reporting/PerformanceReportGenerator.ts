@@ -1,6 +1,32 @@
 import type { PerformanceStats, ActionBreakdown, RuleBreakdown, ThesisBreakdown } from '../../app/services/ResearchPerformanceService.js';
 
 export class PerformanceReportGenerator {
+  private buildReadiness(stats: PerformanceStats) {
+    const coverage = stats.totalCount > 0 ? stats.validReturnCount / stats.totalCount : 0;
+    if (stats.evaluableCount < 10 || coverage < 0.6) {
+      return {
+        stage: 'insufficient',
+        message: '目前仍屬 smoke / 邏輯驗證，不宜做規則升降權。'
+      };
+    }
+    if (stats.evaluableCount < 20) {
+      return {
+        stage: 'observation',
+        message: '可開始做 early observation，但仍需更多交易日確認。'
+      };
+    }
+    if (stats.evaluableCount < 40) {
+      return {
+        stage: 'stability',
+        message: '已可比較規則方向，但尚未達成熟決策等級。'
+      };
+    }
+    return {
+      stage: 'actionable',
+      message: '樣本與覆蓋率較完整，可作為規則調整的重要依據。'
+    };
+  }
+
   /**
    * 產出成效總覽報告
    */
@@ -14,6 +40,7 @@ export class PerformanceReportGenerator {
     const formatRet = (val: number | undefined) => {
       return (val !== undefined && Number.isFinite(val)) ? (val * 100).toFixed(2) + '%' : 'N/A';
     };
+    const readiness = this.buildReadiness(stats);
 
     const summary = [
       `# 研究任務成效分析報告`,
@@ -30,6 +57,8 @@ export class PerformanceReportGenerator {
       `- **5日平均報酬率: ${formatRet(stats.averageReturn5D as any)}**`,
       `- **5日大盤平均報酬: ${formatRet(stats.averageBaselineReturn)}**`,
       `- **平均超額報酬 (Alpha): ${formatRet(stats.averageAlpha)}**`,
+      `- **樣本判讀階段: ${readiness.stage}**`,
+      `- ${readiness.message}`,
       ''
     ].filter(line => line !== '');
 

@@ -1,5 +1,6 @@
 import type { RuleResult, FinalDecision, RuleAction } from '../../core/types/rule.js';
 import type { ThesisStatus } from '../../core/types/common.js';
+import type { ThesisEvaluation } from './ThesisTracker.js';
 
 export interface DecisionComposerInput {
   stockId: string;
@@ -9,6 +10,7 @@ export interface DecisionComposerInput {
   valuationGap?: number; // upside/downside percentage
   features?: any; // 加入 features 用於摘要產生
   hasPosition?: boolean; // 預設為 false
+  thesisEvaluation?: ThesisEvaluation;
 }
 
 export class DecisionComposer {
@@ -162,6 +164,9 @@ export class DecisionComposer {
     if (explanation?.blockingConditions.length) {
       parts.push(`攔截條件: ${explanation.blockingConditions.join('、')}。`);
     }
+    if (explanation?.thesisSignals?.length) {
+      parts.push(`論點訊號: ${explanation.thesisSignals.join('、')}。`);
+    }
 
     if (buys > 0 && exits > 0) parts.push(`警告：系統偵測到 ${buys} 項偏多與 ${exits} 項偏空規則衝突。`);
     if (thesis === 'weakened') parts.push('提醒：投資論點已出現轉弱。');
@@ -205,6 +210,29 @@ export class DecisionComposer {
       }
     ];
 
+    const holdChecks = [
+      {
+        met: hasPosition === true,
+        text: '持倉模式啟用'
+      },
+      {
+        met: thesis === 'active',
+        text: '論點維持 active'
+      },
+      {
+        met: (features.totalScore ?? 0) >= 60,
+        text: `總分(${features.totalScore ?? 0}) >= 60`
+      },
+      {
+        met: (features.closePrice ?? 0) >= (features.ma20 ?? Number.MAX_VALUE) && (features.ma20 ?? 0) > 0,
+        text: `股價(${features.closePrice ?? 0}) >= MA20(${Number(features.ma20 ?? 0).toFixed(1)})`
+      },
+      {
+        met: (features.institutionalNet ?? 0) >= 0,
+        text: `法人未翻空(${(features.institutionalNet ?? 0).toFixed?.(0) ?? features.institutionalNet ?? 0}) >= 0`
+      }
+    ];
+
     const trimChecks = [
       {
         met: thesis === 'weakened',
@@ -217,6 +245,25 @@ export class DecisionComposer {
       {
         met: (features.institutionalNet ?? 0) < 0,
         text: `法人賣超(${(features.institutionalNet ?? 0).toFixed?.(0) ?? features.institutionalNet ?? 0}) < 0`
+      }
+    ];
+
+    const sellChecks = [
+      {
+        met: (features.closePrice ?? 0) < (features.ma20 ?? 0) && (features.ma20 ?? 0) > 0,
+        text: `股價(${features.closePrice ?? 0}) < MA20(${Number(features.ma20 ?? 0).toFixed(1)})`
+      },
+      {
+        met: (features.bias20 ?? 0) <= -5,
+        text: `乖離(${Number(features.bias20 ?? 0).toFixed(1)}%) <= -5%`
+      },
+      {
+        met: (features.institutionalNet ?? 0) < 0,
+        text: `法人賣超(${(features.institutionalNet ?? 0).toFixed?.(0) ?? features.institutionalNet ?? 0}) < 0`
+      },
+      {
+        met: (features.totalScore ?? 0) < 55,
+        text: `總分(${features.totalScore ?? 0}) < 55`
       }
     ];
 
@@ -242,15 +289,26 @@ export class DecisionComposer {
 
     const buyConditions = toConditions(buyChecks);
     const addConditions = toConditions(addChecks);
+    const holdConditions = toConditions(holdChecks);
     const trimConditions = toConditions(trimChecks);
+    const sellConditions = toConditions(sellChecks);
     const riskConditions = toConditions(riskChecks);
+    const thesisSignals = input.thesisEvaluation
+      ? [
+          ...input.thesisEvaluation.supportPasses.map(signal => `論點支持: ${signal}`),
+          ...input.thesisEvaluation.supportFails.map(signal => `論點轉弱: ${signal}`),
+          ...input.thesisEvaluation.riskHits.map(signal => `論點風險: ${signal}`),
+          ...input.thesisEvaluation.disconfirmHits.map(signal => `論點破壞: ${signal}`)
+        ]
+      : [];
 
     const explanation = {
       primaryRuleId: primaryRule?.ruleId,
       primaryRuleName: primaryRule?.ruleName,
       triggeredConditions: [] as string[],
       missingConditions: [] as string[],
-      blockingConditions: [] as string[]
+      blockingConditions: [] as string[],
+      thesisSignals
     };
 
     if (primaryRule?.category === 'filter') {
@@ -267,15 +325,15 @@ export class DecisionComposer {
     } else if (action === 'WATCH') {
       explanation.missingConditions.push(...buyConditions.unmet);
     } else if (action === 'HOLD') {
-      explanation.triggeredConditions.push(
-        '持倉模式啟用',
-        thesis === 'active' ? '論點維持 active' : '論點尚未破壞'
-      );
-      explanation.missingConditions.push(...addConditions.unmet);
+      explanation.triggeredConditions.push(...holdConditions.met);
+      explanation.missingConditions.push(...holdConditions.unmet);
     } else if (action === 'TRIM') {
       explanation.blockingConditions.push(...trimConditions.met);
-      explanation.missingConditions.push(...addConditions.unmet);
-    } else if (action === 'BLOCK' || action === 'EXIT' || action === 'SELL') {
+      explanation.missingConditions.push(...holdConditions.unmet);
+    } else if (action === 'SELL') {
+      explanation.blockingConditions.push(...sellConditions.met);
+      explanation.missingConditions.push(...holdConditions.unmet);
+    } else if (action === 'BLOCK' || action === 'EXIT') {
       explanation.blockingConditions.push(...riskConditions.met);
       if (hasPosition && action !== 'BLOCK' && trimConditions.met.length > 0) {
         explanation.blockingConditions.push(...trimConditions.met);

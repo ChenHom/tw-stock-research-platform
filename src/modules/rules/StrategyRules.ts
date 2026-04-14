@@ -125,3 +125,102 @@ export class TrendWeakeningRule implements BaseRule {
     };
   }
 }
+
+export class HoldTrendRule implements BaseRule {
+  readonly id = 'strategy.hold_trend';
+  readonly name = 'Hold Trend';
+  readonly category = 'exit';
+  readonly priority = 85;
+  readonly tags = ['strategy', 'hold', 'position'];
+
+  supports(context: RuleContext): boolean {
+    return context.config?.hasPosition === true && context.thesis?.status !== 'broken';
+  }
+
+  async evaluate(context: RuleContext): Promise<RuleResult> {
+    const score = context.features.totalScore ?? 0;
+    const instNet = context.features.institutionalNet ?? 0;
+    const close = context.features.closePrice ?? 0;
+    const ma20 = context.features.ma20 ?? 0;
+
+    const triggered = score >= 60 && ma20 > 0 && close >= ma20 && instNet >= 0;
+
+    return {
+      ruleId: this.id,
+      ruleName: this.name,
+      category: this.category,
+      action: triggered ? 'HOLD' : 'WATCH',
+      severity: 'info',
+      triggered,
+      reason: triggered
+        ? `Trend still healthy: score=${score}, close=${close} >= ma20=${ma20}, instNet=${instNet}`
+        : 'Hold conditions not met'
+    };
+  }
+}
+
+export class ValuationOverheatTrimRule implements BaseRule {
+  readonly id = 'strategy.valuation_overheat_trim';
+  readonly name = 'Valuation Overheat Trim';
+  readonly category = 'exit';
+  readonly priority = 75;
+  readonly tags = ['strategy', 'trim', 'overheat'];
+
+  supports(context: RuleContext): boolean {
+    return context.config?.hasPosition === true && context.thesis?.status !== 'broken';
+  }
+
+  async evaluate(context: RuleContext): Promise<RuleResult> {
+    const bias20 = context.features.bias20 ?? 0;
+    const score = context.features.totalScore ?? 0;
+    const volumeRatio20 = context.features.volumeRatio20 ?? 0;
+
+    const triggered = bias20 >= 12 || (score >= 80 && volumeRatio20 >= 1.5);
+
+    return {
+      ruleId: this.id,
+      ruleName: this.name,
+      category: this.category,
+      action: triggered ? 'TRIM' : 'WATCH',
+      severity: 'warning',
+      triggered,
+      reason: triggered
+        ? `Overheat signs: bias20=${bias20.toFixed(1)}, score=${score}, volumeRatio20=${volumeRatio20.toFixed(2)}`
+        : 'No overheat signals'
+    };
+  }
+}
+
+export class SupportBreakdownSellRule implements BaseRule {
+  readonly id = 'strategy.support_breakdown_sell';
+  readonly name = 'Support Breakdown Sell';
+  readonly category = 'exit';
+  readonly priority = 65;
+  readonly tags = ['strategy', 'sell', 'position'];
+
+  supports(context: RuleContext): boolean {
+    return context.config?.hasPosition === true;
+  }
+
+  async evaluate(context: RuleContext): Promise<RuleResult> {
+    const score = context.features.totalScore ?? 0;
+    const instNet = context.features.institutionalNet ?? 0;
+    const close = context.features.closePrice ?? 0;
+    const ma20 = context.features.ma20 ?? 0;
+    const bias20 = context.features.bias20 ?? 0;
+
+    const triggered = (ma20 > 0 && close < ma20 && instNet < 0 && score < 55) || bias20 <= -5;
+
+    return {
+      ruleId: this.id,
+      ruleName: this.name,
+      category: this.category,
+      action: triggered ? 'SELL' : 'WATCH',
+      severity: 'warning',
+      triggered,
+      reason: triggered
+        ? `Support breakdown: close=${close}, ma20=${ma20}, instNet=${instNet}, score=${score}, bias20=${bias20.toFixed(1)}`
+        : 'Support remains intact'
+    };
+  }
+}

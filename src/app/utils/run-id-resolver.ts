@@ -1,7 +1,7 @@
 import { toTaipeiDateString } from '../../core/utils/date.js';
 import type { ResearchRunQueryService } from '../services/ResearchRunQueryService.js';
 
-type RunQueryServiceLike = Pick<ResearchRunQueryService, 'getLatestRunSummary' | 'findRunsByDate'>;
+type RunQueryServiceLike = Pick<ResearchRunQueryService, 'getLatestRunSummary' | 'findCompletedRunsByDate'>;
 
 function parseExplicitRunIds(parts: Array<string | undefined>): string[] {
   return Array.from(
@@ -42,7 +42,7 @@ export async function resolveRunIds(
 
     while (current <= end) {
       const dateStr = toTaipeiDateString(current);
-      const runs = await queryService.findRunsByDate(dateStr);
+      const runs = await queryService.findCompletedRunsByDate(dateStr);
       runIds.push(...runs.map(run => run.runId));
       current.setDate(current.getDate() + 1);
     }

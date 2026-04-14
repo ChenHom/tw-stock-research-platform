@@ -6,6 +6,8 @@ export class InsightsReportGenerator {
       `# 🧠 研究任務優化建議報告`,
       `任務 ID: ${insights.runId}`,
       `產出時間: ${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`,
+      `樣本階段: **${insights.sampleAssessment.stage}** (${insights.sampleAssessment.evaluableCount} evaluable / 覆蓋率 ${(insights.sampleAssessment.coverage * 100).toFixed(1)}%)`,
+      `判讀說明: ${insights.sampleAssessment.message}`,
       ''
     ];
 

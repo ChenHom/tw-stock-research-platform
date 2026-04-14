@@ -47,6 +47,15 @@ async function main() {
       );
     });
 
+    console.log('\n--- 條件解釋 ---');
+    result.days.forEach(day => {
+      console.log(`\n[${day.tradeDate}] ${day.action} / thesis=${day.thesisStatus}`);
+      if (day.triggeredConditions.length) console.log(`  已達: ${day.triggeredConditions.join('、')}`);
+      if (day.missingConditionsDetail.length) console.log(`  未達: ${day.missingConditionsDetail.join('、')}`);
+      if (day.blockingConditions.length) console.log(`  攔截: ${day.blockingConditions.join('、')}`);
+      if (day.thesisSignals.length) console.log(`  論點: ${day.thesisSignals.join('、')}`);
+    });
+
     if (result.summary.skippedNonTradingDays > 0) {
       console.log(`\n[CLI] 已略過 ${result.summary.skippedNonTradingDays} 個非交易日；若要保留日曆日，請加上 --calendar-days。`);
     }

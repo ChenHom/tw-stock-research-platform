@@ -13,7 +13,17 @@ export interface ThesisEvidenceRef {
   polarity: EvidencePolarity;
   comparison?: ComparisonType;
   threshold?: number;
+  label?: string;
   note?: string;
+}
+
+export interface ThesisEvaluation {
+  status: ThesisStatus;
+  supportPasses: string[];
+  supportFails: string[];
+  riskHits: string[];
+  disconfirmHits: string[];
+  recoverySignals: string[];
 }
 
 export interface CreateThesisInput {
@@ -33,6 +43,7 @@ export interface ThesisSnapshot {
   convictionScore: number;
   evidence: ThesisEvidenceRef[];
   createdAt: string;
+  lastEvaluation?: ThesisEvaluation;
 }
 
 export class ThesisTracker {
@@ -65,13 +76,20 @@ export class ThesisTracker {
    * 強化版狀態評估邏輯 (P1-4)
    */
   evaluateStatus(current: ThesisSnapshot, context: RuleContext): ThesisStatus {
+    return this.evaluateDetailed(current, context).status;
+  }
+
+  evaluateDetailed(current: ThesisSnapshot, context: RuleContext): ThesisEvaluation {
     const { features } = context;
+    const supportPasses: string[] = [];
     const supportFails: string[] = [];
+    const riskHits: string[] = [];
     const disconfirmHits: string[] = [];
 
     for (const ev of current.evidence) {
       const value = (features as any)[ev.pillarKey];
       let isMet = true;
+      const label = ev.label ?? ev.note ?? ev.pillarKey;
 
       // 支援多種比較運算
       if (ev.comparison === 'eq_true') isMet = value === true;
@@ -80,14 +98,34 @@ export class ThesisTracker {
       else if (ev.comparison === 'lte' && ev.threshold !== undefined) isMet = value <= ev.threshold;
       else isMet = !!value;
 
-      if (!isMet && ev.polarity === 'support') supportFails.push(ev.pillarKey);
-      if (isMet && ev.polarity === 'disconfirm') disconfirmHits.push(ev.pillarKey);
+      if (ev.polarity === 'support') {
+        if (isMet) supportPasses.push(label);
+        else supportFails.push(label);
+      }
+      if (isMet && ev.polarity === 'risk') riskHits.push(label);
+      if (isMet && ev.polarity === 'disconfirm') disconfirmHits.push(label);
     }
 
-    if (disconfirmHits.length > 0) return 'broken';
-    if (supportFails.length >= 2) return 'broken';
-    if (supportFails.length === 1) return 'weakened';
+    const recoverySignals = supportPasses.filter(signal =>
+      current.status === 'weakened' || current.status === 'draft'
+    );
 
-    return current.status === 'draft' ? 'active' : current.status;
+    let status: ThesisStatus;
+    if (disconfirmHits.length > 0) status = 'broken';
+    else if (supportFails.length >= 2) status = 'broken';
+    else if (riskHits.length > 0 && supportFails.length > 0) status = 'broken';
+    else if (riskHits.length > 0 || supportFails.length === 1) status = 'weakened';
+    else status = 'active';
+
+    if (current.status === 'archived') status = 'archived';
+
+    return {
+      status,
+      supportPasses,
+      supportFails,
+      riskHits,
+      disconfirmHits,
+      recoverySignals
+    };
   }
 }

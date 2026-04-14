@@ -14,16 +14,24 @@ echo "==========================================="
 export STORAGE_TYPE=${STORAGE_TYPE:-postgres}
 
 echo -e "\n[Step 1/5] 執行深度研究 (Candidates)..."
-npm run candidates -- $DATE --stocks=$STOCKS
+CANDIDATE_OUTPUT=$(npm run candidates -- $DATE --stocks=$STOCKS)
+echo "$CANDIDATE_OUTPUT"
+
+RUN_ID=$(echo "$CANDIDATE_OUTPUT" | grep -oE 'RunId: [A-Za-z0-9-]+' | awk '{print $2}' | tail -n1)
+if [ -z "$RUN_ID" ]; then
+  echo "❌ 失敗: 無法從 candidates 輸出解析 runId"
+  exit 1
+fi
+echo "🔒 本次驗證 runId: $RUN_ID"
 
 echo -e "\n[Step 2/5] 驗證歷史紀錄 (History)..."
-npm run run-history latest
+npm run run-history detail $RUN_ID
 
 echo -e "\n[Step 3/5] 執行成效回填 (Outcomes)..."
-npm run outcomes latest
+npm run outcomes $RUN_ID
 
 echo -e "\n[Step 4/5] 產出績效報表 (Performance)..."
-PERF_OUTPUT=$(npm run performance latest)
+PERF_OUTPUT=$(npm run performance runs $RUN_ID)
 echo "$PERF_OUTPUT"
 
 # --- 驗收斷言 (Assertions) ---
@@ -59,6 +67,6 @@ fi
 echo "✅ Smoke Test 驗收通過。"
 
 echo -e "\n[Step 5/5] 產出策略洞察 (Insights)..."
-npm run insights latest
+npm run insights runs $RUN_ID
 
 echo -e "\n✅ MVP 測試鏈路執行完畢。"

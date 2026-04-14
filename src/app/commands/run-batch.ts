@@ -45,6 +45,7 @@ async function main() {
   const insightsService = new ResearchInsightsService();
   const insightsReportGenerator = new InsightsReportGenerator();
   const stockIds = stocks.split(',').map(stock => stock.trim()).filter(Boolean);
+  const dayRuns: Array<{ tradeDate: string; runId: string; resultCount: number }> = [];
 
   // 1. 迭代日期執行研究與回填
   const current = new Date(startDate);
@@ -75,6 +76,11 @@ async function main() {
       console.log(`[Step 2] 執行成效回填 (Outcomes) for ${runId}...`);
       await app.researchOutcomeService.backfillOutcomes(runId);
       runIds.push(runId);
+      dayRuns.push({
+        tradeDate: dateStr,
+        runId,
+        resultCount: results.length
+      });
     } catch (error: any) {
       console.error(`❌ 日期 ${dateStr} 處理失敗: ${error.message}`);
     }
@@ -120,11 +126,28 @@ async function main() {
   console.log(sig.message);
 
   const isolatedRunIds = runIds.join(',');
+  const batchLabel = `BATCH (${runIds.length} runs)`;
+  const coveragePct = stats.totalCount > 0 ? (stats.validReturnCount / stats.totalCount) * 100 : 0;
+  const insights = insightsService.analyze(
+    isolatedRunIds,
+    stats,
+    actionBreakdown,
+    ruleBreakdown,
+    thesisBreakdown
+  );
+
+  console.log('\n--- Batch Isolation ---');
+  dayRuns.forEach(day => {
+    console.log(`- ${day.tradeDate}: ${day.runId} (${day.resultCount} 檔)`);
+  });
+  console.log(`- Follow-up performance: npm run performance runs ${isolatedRunIds}`);
+  console.log(`- Follow-up insights: npm run insights runs ${isolatedRunIds}`);
+  console.log(`- 覆蓋率摘要: evaluable=${stats.evaluableCount}, returnCoverage=${coveragePct.toFixed(1)}%, insightStage=${insights.sampleAssessment.stage}`);
 
   console.log('\n[Step 3] 產出聚合績效報表 (Performance Runs)...');
   console.log('\n--- 執行深度績效分析 (包含 Rules & Thesis) ---\n');
   console.log(performanceReportGenerator.buildPerformanceMarkdown(
-    isolatedRunIds,
+    batchLabel,
     stats,
     actionBreakdown,
     ruleBreakdown,
@@ -133,15 +156,7 @@ async function main() {
 
   console.log('\n[Step 4] 產出聚合策略洞察 (Insights Runs)...');
   console.log('\n--- 執行策略優化分析 ---\n');
-  console.log(insightsReportGenerator.buildInsightsMarkdown(
-    insightsService.analyze(
-      isolatedRunIds,
-      stats,
-      actionBreakdown,
-      ruleBreakdown,
-      thesisBreakdown
-    )
-  ));
+  console.log(insightsReportGenerator.buildInsightsMarkdown(insights));
 
   console.log('\n✅ MVP 批次驗收測試全數通過。');
   process.exit(0);

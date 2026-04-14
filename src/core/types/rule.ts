@@ -70,6 +70,7 @@ export interface FinalDecision {
     triggeredConditions: string[];
     missingConditions: string[];
     blockingConditions: string[];
+    thesisSignals?: string[];
   };
   supportingRules: string[];
   blockingRules: string[];

@@ -57,6 +57,7 @@ export interface ResearchRunRepository {
   
   // 查詢功能 (P1)
   getLatestRun(): Promise<ResearchRun | null>;
+  getLatestCompletedRun(): Promise<ResearchRun | null>;
   getRunById(runId: string): Promise<ResearchRun | null>;
   findRunsByDate(date: string): Promise<ResearchRun[]>;
   getRunResults(runId: string): Promise<CandidateResearchResultRecord[]>;

@@ -1,7 +1,7 @@
 import type { AccountTier, ThesisStatus } from '../types/common.js';
 import type { FeatureSnapshot } from '../types/feature.js';
 import type { FinalDecision, RuleResult } from '../types/rule.js';
-import type { ThesisSnapshot } from '../../modules/research/ThesisTracker.js';
+import type { ThesisEvaluation, ThesisSnapshot } from '../../modules/research/ThesisTracker.js';
 
 export interface RunResearchInput {
   stockId: string;
@@ -32,6 +32,7 @@ export interface RunResearchOutput {
   diagnostics: ResearchDiagnostics;
   featureSnapshot: FeatureSnapshot;
   thesisSnapshot?: ThesisSnapshot;
+  thesisEvaluation?: ThesisEvaluation;
   thesisStatus: ThesisStatus | 'none';
   ruleResults: RuleResult[];
   finalDecision: FinalDecision;

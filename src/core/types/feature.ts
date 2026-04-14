@@ -1,8 +1,14 @@
 export type FeatureKey =
   | 'closePrice'
+  | 'bias20'
+  | 'ma20'
+  | 'institutionalNet'
+  | 'volumeRatio20'
   | 'totalScore'
   | 'revenueYoy'
   | 'revenueAcceleration'
+  | 'grossMarginGrowth'
+  | 'alphaVs0050'
   | 'marginRiskScore'
   | 'eventScore';
 

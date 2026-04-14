@@ -9,7 +9,7 @@ import type { FeatureBuilder } from '../../core/contracts/feature.js';
 import type { FeatureSnapshotRepository, FinalDecisionRepository } from '../../core/contracts/storage.js';
 import type { BudgetSnapshot } from '../../modules/budget/RateBudgetGuard.js';
 import { ProviderRegistry } from '../../modules/providers/ProviderRegistry.js';
-import { ThesisTracker, type ThesisSnapshot } from '../../modules/research/ThesisTracker.js';
+import { ThesisTracker, type ThesisSnapshot, type ThesisEvaluation, type CreateThesisInput } from '../../modules/research/ThesisTracker.js';
 import { DecisionComposer } from '../../modules/research/DecisionComposer.js';
 import { getDaysAgo, toTaipeiDateString } from '../../core/utils/date.js';
 
@@ -92,42 +92,36 @@ export class ResearchPipelineService {
       payload: featureSet
     };
 
-    // 2.5 自動合成初始論點 (若外部未提供且表現優異或極差)
+    // 2.5 自動合成初始論點
     let activeThesis = thesis;
     if (!activeThesis) {
-      if (featureSet.totalScore >= 70) {
-        activeThesis = this.deps.thesisTracker.createThesis({
-          stockId: input.stockId,
-          statement: '系統生成：基本面與籌碼面強勢',
-          direction: 'long',
-          evidence: [],
-          convictionScore: 80
-        });
-      } else if (featureSet.totalScore < 40) {
-        activeThesis = this.deps.thesisTracker.createThesis({
-          stockId: input.stockId,
-          statement: '系統生成：基本面轉弱或籌碼流失',
-          direction: 'short',
-          evidence: [],
-          convictionScore: 30
-        });
-      } else {
-        activeThesis = this.deps.thesisTracker.createThesis({
-          stockId: input.stockId,
-          statement: '系統生成：動能平庸',
-          direction: 'long',
-          evidence: [],
-          convictionScore: 50
-        });
-      }
+      activeThesis = this.deps.thesisTracker.createThesis(this.buildSystemThesis(featureSet));
     }
 
-    // 3. 評估論點狀態 (依分數映射狀態)
+    // 3. 評估論點狀態 (evidence-driven)
     let thesisStatus: import('../../core/types/common.js').ThesisStatus | 'none' = 'none';
+    let thesisEvaluation: ThesisEvaluation | undefined;
     if (activeThesis) {
-      if (featureSet.totalScore >= 70) thesisStatus = 'active';
-      else if (featureSet.totalScore < 40) thesisStatus = 'broken';
-      else thesisStatus = 'weakened';
+      thesisEvaluation = this.deps.thesisTracker.evaluateDetailed(activeThesis, {
+        stockId: input.stockId,
+        asOf: input.tradeDate,
+        features: featureSet,
+        config: {
+          hasPosition: input.hasPosition ?? false
+        },
+        thesis: {
+          id: activeThesis.thesisId,
+          version: activeThesis.version,
+          status: activeThesis.status,
+          direction: activeThesis.direction
+        }
+      });
+      thesisStatus = thesisEvaluation.status;
+      activeThesis = {
+        ...activeThesis,
+        status: thesisEvaluation.status,
+        lastEvaluation: thesisEvaluation
+      };
     }
 
     // 4. 執行規則引擎
@@ -156,7 +150,8 @@ export class ResearchPipelineService {
       thesisStatus: thesisStatus,
       valuationGap: undefined,
       features: featureSet,
-      hasPosition: input.hasPosition
+      hasPosition: input.hasPosition,
+      thesisEvaluation
     });
 
     // 6. 持久化
@@ -180,6 +175,7 @@ export class ResearchPipelineService {
       },
       featureSnapshot,
       thesisSnapshot: activeThesis,
+      thesisEvaluation,
       thesisStatus,
       ruleResults,
       finalDecision
@@ -254,6 +250,101 @@ export class ResearchPipelineService {
         asOf: tradeDate
       },
       warnings: response.warnings
+    };
+  }
+
+  private buildSystemThesis(featureSet: FeatureSnapshot['payload']): CreateThesisInput {
+    const direction =
+      featureSet.totalScore >= 60 ? 'long'
+      : featureSet.totalScore < 40 ? 'short'
+      : 'watch';
+
+    const statement =
+      direction === 'long'
+        ? '系統生成：基本面、趨勢與籌碼偏多'
+        : direction === 'short'
+          ? '系統生成：趨勢轉弱且風險升高'
+          : '系統生成：條件未齊，先以觀察為主';
+
+    return {
+      stockId: featureSet.stockId,
+      statement,
+      direction,
+      convictionScore: Math.max(20, Math.min(90, Math.round(featureSet.totalScore))),
+      evidence: [
+        {
+          type: 'feature_snapshot',
+          refId: 'score-floor',
+          pillarKey: 'totalScore',
+          polarity: 'support',
+          comparison: 'gte',
+          threshold: 60,
+          label: '總分 >= 60'
+        },
+        {
+          type: 'feature_snapshot',
+          refId: 'trend-above-ma20',
+          pillarKey: 'bias20',
+          polarity: 'support',
+          comparison: 'gte',
+          threshold: 0,
+          label: '股價站上 MA20'
+        },
+        {
+          type: 'feature_snapshot',
+          refId: 'chip-positive',
+          pillarKey: 'institutionalNet',
+          polarity: 'support',
+          comparison: 'gte',
+          threshold: 0,
+          label: '法人未翻空'
+        },
+        {
+          type: 'feature_snapshot',
+          refId: 'revenue-yoy',
+          pillarKey: 'revenueYoy',
+          polarity: 'support',
+          comparison: 'gte',
+          threshold: 0.15,
+          label: '營收 YoY >= 15%'
+        },
+        {
+          type: 'feature_snapshot',
+          refId: 'event-neutral',
+          pillarKey: 'eventScore',
+          polarity: 'support',
+          comparison: 'gte',
+          threshold: 50,
+          label: '事件分數 >= 50'
+        },
+        {
+          type: 'feature_snapshot',
+          refId: 'margin-risk',
+          pillarKey: 'marginRiskScore',
+          polarity: 'risk',
+          comparison: 'gte',
+          threshold: 80,
+          label: '融資風險過高'
+        },
+        {
+          type: 'feature_snapshot',
+          refId: 'trend-breakdown',
+          pillarKey: 'bias20',
+          polarity: 'disconfirm',
+          comparison: 'lte',
+          threshold: -5,
+          label: '股價跌破 MA20 5% 以上'
+        },
+        {
+          type: 'feature_snapshot',
+          refId: 'chip-reversal',
+          pillarKey: 'institutionalNet',
+          polarity: 'disconfirm',
+          comparison: 'lte',
+          threshold: -200,
+          label: '法人顯著翻空'
+        }
+      ]
     };
   }
 }

@@ -12,7 +12,7 @@ export class ResearchRunQueryService {
    * 獲取最近一次的研究任務摘要
    */
   async getLatestRunSummary(): Promise<RunSummary | null> {
-    const run = await this.repo.getLatestRun();
+    const run = await this.repo.getLatestCompletedRun();
     if (!run) return null;
 
     const results = await this.repo.getRunResults(run.runId);
@@ -24,6 +24,11 @@ export class ResearchRunQueryService {
    */
   async findRunsByDate(date: string): Promise<ResearchRun[]> {
     return this.repo.findRunsByDate(date);
+  }
+
+  async findCompletedRunsByDate(date: string): Promise<ResearchRun[]> {
+    const runs = await this.repo.findRunsByDate(date);
+    return runs.filter(run => run.status === 'completed');
   }
 
   /**

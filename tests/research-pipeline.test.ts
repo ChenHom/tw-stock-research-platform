@@ -9,7 +9,7 @@ import { DecisionComposer } from '../src/modules/research/DecisionComposer.js';
 import { InMemoryFeatureSnapshotRepository, InMemoryFinalDecisionRepository } from '../src/modules/storage/InMemoryRepositories.js';
 import { MockProvider } from './mocks/MockProvider.js';
 import { DataQualityGuardRule } from '../src/modules/rules/FilterRules.js';
-import { BuySetupRule } from '../src/modules/rules/StrategyRules.js';
+import { BuySetupRule, HoldTrendRule } from '../src/modules/rules/StrategyRules.js';
 
 test('ResearchPipeline (可信度驗證): 應能使用 Mock 資料完整產出具備計分的決策', async (t) => {
   const start = new Date('2026-03-08');
@@ -40,6 +40,7 @@ test('ResearchPipeline (可信度驗證): 應能使用 Mock 資料完整產出�
   const ruleRegistry = new DefaultRuleRegistry();
   ruleRegistry.register(new DataQualityGuardRule());
   ruleRegistry.register(new BuySetupRule());
+  ruleRegistry.register(new HoldTrendRule());
 
   // Mock Router：強迫所有 Dataset 都走 mock provider
   const mockRouter: any = {
@@ -73,5 +74,7 @@ test('ResearchPipeline (可信度驗證): 應能使用 Mock 資料完整產出�
   const score = result.featureSnapshot.payload.totalScore;
   assert.ok(score > 0, `特徵計分應大於 0 (應包含估值與營收加分), 實際為: ${score}`);
   assert.strictEqual(result.finalDecision.action, 'BUY');
+  assert.ok(result.thesisEvaluation, '應產出 evidence-driven thesis evaluation');
+  assert.ok((result.finalDecision.explanation?.thesisSignals?.length ?? 0) > 0, '決策說明應包含論點訊號');
   assert.ok(!result.ruleResults.some(rule => rule.ruleId === 'filter.data_quality_guard' && rule.triggered), '資料完整時不應被品質防線攔下');
 });

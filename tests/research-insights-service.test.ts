@@ -6,7 +6,16 @@ test('ResearchInsightsService: 應能根據績效數據產出優化建議', (t) 
   const service = new ResearchInsightsService();
   const runId = 'test-run-insight';
   
-  const stats = { totalCount: 20, evaluableCount: 20, correctDirectionCount: 12, accuracy: 0.6, averageReturn5D: 0.02 };
+  const stats = {
+    totalCount: 20,
+    evaluableCount: 20,
+    correctDirectionCount: 12,
+    accuracy: 0.6,
+    averageReturn5D: 0.02,
+    validReturnCount: 18,
+    averageBaselineReturn: 0.01,
+    averageAlpha: 0.01
+  };
   const actionBreakdown = [
     { action: 'BUY', count: 12, evaluableCount: 12, accuracy: 0.4, avgReturn: -0.01 }, 
     { action: 'SELL', count: 8, evaluableCount: 8, accuracy: 0.9, avgReturn: 0.05 }
@@ -23,8 +32,9 @@ test('ResearchInsightsService: 應能根據績效數據產出優化建議', (t) 
 
   assert.strictEqual(insights.topEffectiveRules[0].ruleId, 'rule-high');
   assert.strictEqual(insights.lowEffectiveRules[0].ruleId, 'rule-low');
+  assert.strictEqual(insights.sampleAssessment.stage, 'stability');
 
   const ruleSuggestion = insights.optimizationSuggestions.find(s => s.type === 'RULE');
   assert.ok(ruleSuggestion);
-  assert.strictEqual(ruleSuggestion?.id, 'rule-low');
+  assert.strictEqual(ruleSuggestion?.id, 'sample-stability');
 });

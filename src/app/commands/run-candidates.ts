@@ -56,18 +56,12 @@ async function main() {
     console.log(`\n[CLI] 研究任務完成。RunId: ${runId}`);
     console.log('\n--- 候選池研究報表 ---');
     
-    // P0-1: 確保傳遞給報表的資料結構正確 (ViewModel 映射)
-    const viewModels = results.map(r => ({
-      stockId: r.stockId,
-      preliminaryScore: r.preliminaryScore,
-      totalScore: r.research.featureSnapshot.payload.totalScore,
-      action: r.research.finalDecision.action,
-      confidence: r.research.finalDecision.confidence,
-      summary: r.research.finalDecision.summary,
-      thesisStatus: r.research.thesisStatus
-    }));
-
-    console.log(reportGenerator.buildMarkdownTableFromModels(viewModels, tradeDate));
+    console.log(reportGenerator.buildMarkdownTable(
+      results.map(r => ({
+        ...r.research,
+        preliminaryScore: r.preliminaryScore
+      }))
+    ));
 
     process.exit(0);
 
